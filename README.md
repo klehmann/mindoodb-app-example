@@ -28,7 +28,7 @@ Install dependencies:
 npm install
 ```
 
-Run the development server on port `4174`:
+Run the development server on port `4200`:
 
 ```bash
 npm run dev
@@ -50,7 +50,7 @@ npm test
 
 1. Run Haven locally.
 2. Start this app with `npm run dev`.
-3. Register the app in Haven with an entry URL such as `http://localhost:4174`.
+3. Register the app in Haven with an entry URL such as `http://localhost:4200`.
 4. Map one or more databases to the app.
 5. Optionally attach Haven view mappings to the app registration.
 6. Launch the app from Haven so the SDK bridge can establish a session.

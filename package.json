@@ -7,7 +7,7 @@
   "type": "module",
   "main": "./src/main.ts",
   "scripts": {
-    "dev": "vite --port 4174",
+    "dev": "vite --port 4200",
     "build": "vue-tsc --noEmit && vite build",
     "test": "vitest run",
     "test:watch": "vitest"
