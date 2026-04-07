@@ -1,0 +1,147 @@
+:root {
+  color-scheme: dark;
+  --bg: #081325;
+  --bg-elevated: rgba(17, 30, 51, 0.92);
+  --bg-soft: rgba(33, 48, 75, 0.72);
+  --bg-muted: rgba(13, 22, 39, 0.78);
+  --border: rgba(138, 166, 216, 0.18);
+  --border-strong: rgba(138, 166, 216, 0.32);
+  --text: #f4f7fb;
+  --muted: #9eabc6;
+  --primary: #5d8bff;
+  --primary-rgb: 93 139 255;
+  --mint: #61d7be;
+  --accent-rgb: 97 215 190;
+  --amber: #f0b66d;
+  --rose: #f08bad;
+  --shadow: 0 28px 80px rgba(3, 8, 18, 0.38);
+  --radius-xl: 32px;
+  --radius-lg: 24px;
+  --radius-md: 18px;
+  --radius-sm: 14px;
+  --surface-blur: blur(22px);
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f3ef;
+  --bg-elevated: rgba(255, 255, 255, 0.9);
+  --bg-soft: rgba(246, 248, 252, 0.92);
+  --bg-muted: rgba(238, 243, 252, 0.88);
+  --border: rgba(67, 104, 178, 0.14);
+  --border-strong: rgba(67, 104, 178, 0.24);
+  --text: #17233b;
+  --muted: #70809f;
+  --shadow: 0 28px 80px rgba(115, 132, 166, 0.18);
+}
+
+:root[data-theme-preset="mindoo"] {
+  --bg: #0b1020;
+  --bg-elevated: rgba(12, 18, 34, 0.94);
+  --bg-soft: rgba(27, 39, 70, 0.78);
+  --bg-muted: rgba(17, 27, 49, 0.82);
+  --border: rgba(118, 141, 191, 0.2);
+  --border-strong: rgba(212, 160, 23, 0.26);
+  --text: #eef2ff;
+  --muted: #a7b4cf;
+  --primary: #1f3a8a;
+  --primary-rgb: 31 58 138;
+  --mint: #d4a017;
+  --accent-rgb: 212 160 23;
+  --amber: #d4a017;
+  --shadow: 0 28px 80px rgba(1, 5, 16, 0.45);
+}
+
+:root[data-theme="light"][data-theme-preset="mindoo"] {
+  color-scheme: light;
+  --bg: #f7f9fc;
+  --bg-elevated: rgba(255, 255, 255, 0.94);
+  --bg-soft: rgba(244, 247, 255, 0.94);
+  --bg-muted: rgba(237, 241, 249, 0.94);
+  --border: rgba(31, 58, 138, 0.14);
+  --border-strong: rgba(212, 160, 23, 0.28);
+  --text: #17233b;
+  --muted: #667795;
+  --shadow: 0 28px 80px rgba(45, 65, 110, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgb(var(--primary-rgb) / 0.16), transparent 28%),
+    radial-gradient(circle at bottom right, rgb(var(--accent-rgb) / 0.12), transparent 24%),
+    var(--bg);
+  color: var(--text);
+  transition:
+    background-color 260ms ease,
+    color 260ms ease;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.glass-card {
+  padding: 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--surface-blur);
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.field__label,
+.panel__eyebrow {
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.native-input {
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+}
+
+.panel__empty {
+  color: var(--muted);
+}
