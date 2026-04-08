@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import Button from "primevue/button";
 import Message from "primevue/message";
 import Tag from "primevue/tag";
@@ -6,6 +7,12 @@ import Tag from "primevue/tag";
 const props = defineProps<{
   app: any;
 }>();
+
+const outlineColumnId = computed(() =>
+  props.app.visibleViewColumns.find((column: { role: string }) => column.role === "category")?.id
+  ?? props.app.visibleViewColumns[0]?.id
+  ?? null,
+);
 
 function handleViewChange(event: Event) {
   const viewId = (event.target as HTMLSelectElement).value;
@@ -34,7 +41,7 @@ function formatValue(value: unknown) {
         <select class="native-input" :value="app.selectedViewId ?? ''" @change="handleViewChange">
           <option disabled value="">Select view</option>
           <option v-for="view in app.availableViews" :key="view.id" :value="view.id">
-            {{ view.description || view.id }}
+            {{ view.id }}
           </option>
         </select>
       </label>
@@ -59,12 +66,11 @@ function formatValue(value: unknown) {
         <div class="panel__header">
           <div>
             <p class="panel__eyebrow">Definition</p>
-            <h3>{{ app.selectedView.description || app.selectedView.id }}</h3>
+            <h3>{{ app.selectedView.id }}</h3>
           </div>
-          <Tag :value="app.selectedView.previewMode" severity="contrast" rounded />
         </div>
 
-        <p class="definition-copy">{{ app.selectedView.description || "No description provided." }}</p>
+        <p v-if="app.selectedView.description" class="definition-copy">{{ app.selectedView.description }}</p>
 
         <div class="metadata-grid">
           <article class="metadata-card">
@@ -74,10 +80,6 @@ function formatValue(value: unknown) {
           <article class="metadata-card">
             <span>Sources</span>
             <strong>{{ app.selectedView.sources.length }}</strong>
-          </article>
-          <article class="metadata-card">
-            <span>Categorization</span>
-            <strong>{{ app.selectedView.categorizationStyle }}</strong>
           </article>
         </div>
 
@@ -104,8 +106,7 @@ function formatValue(value: unknown) {
         </Message>
 
         <div v-if="app.visibleViewColumns.length" class="view-grid view-grid--header">
-          <span>Type</span>
-          <span v-for="column in app.visibleViewColumns" :key="column.id">{{ column.title }}</span>
+          <span v-for="column in app.visibleViewColumns" :key="column.id">{{ column.title || column.name }}</span>
         </div>
 
         <div v-if="app.viewRows.length" class="view-grid-stack">
@@ -115,21 +116,28 @@ function formatValue(value: unknown) {
             class="view-grid"
             :class="row.type === 'category' ? 'view-grid--category' : 'view-grid--document'"
           >
-            <div class="row-type" :style="{ paddingLeft: `${row.level * 1.1}rem` }">
-              <button
-                v-if="row.type === 'category'"
-                class="category-toggle"
-                @click="app.toggleCategory(row)"
-              >
-                <span>{{ row.expanded ? '▾' : '▸' }}</span>
-                <strong>{{ row.categoryPath[row.categoryPath.length - 1] || 'Category' }}</strong>
-                <small>{{ row.descendantDocumentCount }} docs</small>
-              </button>
-              <span v-else>{{ row.docId }}</span>
-            </div>
-
             <span v-for="column in app.visibleViewColumns" :key="`${row.key}-${column.id}`">
-              {{ formatValue(row.values[column.name]) }}
+              <template v-if="column.id === outlineColumnId">
+                <div class="outline-entry" :style="{ paddingLeft: `${row.level * 1.1}rem` }">
+                  <button
+                    v-if="row.type === 'category'"
+                    type="button"
+                    class="category-toggle"
+                    @click="app.toggleCategory(row)"
+                  >
+                    <span class="category-toggle__sign">{{ row.expanded ? '-' : '+' }}</span>
+                    <strong>{{ row.categoryPath[row.categoryPath.length - 1] || 'Category' }}</strong>
+                    <small>{{ row.descendantDocumentCount }} docs</small>
+                  </button>
+                  <template v-else>
+                    <span class="category-toggle__sign category-toggle__sign--placeholder" aria-hidden="true"></span>
+                    <span>{{ formatValue(row.values[column.name]) }}</span>
+                  </template>
+                </div>
+              </template>
+              <template v-else>
+                {{ formatValue(row.values[column.name]) }}
+              </template>
             </span>
           </div>
         </div>
@@ -184,7 +192,7 @@ function formatValue(value: unknown) {
 }
 
 .metadata-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .metadata-card,
@@ -237,8 +245,22 @@ function formatValue(value: unknown) {
   padding: 0;
 }
 
-.row-type {
+.outline-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   min-width: 0;
+}
+
+.category-toggle__sign {
+  display: inline-flex;
+  width: 0.75rem;
+  justify-content: center;
+  flex: 0 0 0.75rem;
+}
+
+.category-toggle__sign--placeholder {
+  visibility: hidden;
 }
 
 .empty-state {

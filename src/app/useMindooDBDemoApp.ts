@@ -1,5 +1,6 @@
 import { computed, onBeforeUnmount, ref } from "vue";
 import {
+  canPreviewAttachment,
   createMindooDBAppBridge,
   type MindooDBAppAttachmentInfo,
   type MindooDBAppDatabase,
@@ -445,6 +446,22 @@ export function useMindooDBDemoApp() {
     }
   }
 
+  async function previewAttachment(attachmentName: string) {
+    if (!selectedDatabase.value || !selectedDocumentId.value) {
+      return;
+    }
+
+    busyAction.value = "Opening attachment preview";
+    error.value = null;
+    try {
+      await selectedDatabase.value.attachments.openPreview(selectedDocumentId.value, attachmentName);
+    } catch (previewError) {
+      error.value = readErrorMessage(previewError, "The attachment preview could not be opened.");
+    } finally {
+      busyAction.value = null;
+    }
+  }
+
   async function uploadAttachments(fileList: FileList | null) {
     if (!selectedDatabase.value || !selectedDocumentId.value || !fileList?.length) {
       return;
@@ -591,6 +608,7 @@ export function useMindooDBDemoApp() {
     canBrowseHistory,
     canUseAttachments,
     canRead,
+    canPreviewAttachment,
     connect,
     selectDatabase,
     startCreateDocument,
@@ -601,6 +619,7 @@ export function useMindooDBDemoApp() {
     loadHistory,
     refreshAttachments,
     uploadAttachments,
+    previewAttachment,
     downloadAttachment,
     removeAttachment,
     setSelectedView,

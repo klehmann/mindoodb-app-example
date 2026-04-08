@@ -65,11 +65,11 @@ describe("runtimeViews", () => {
     expect(runtime.columns[1]).toMatchObject({
       name: "monthSort",
       role: "display",
-      hidden: true,
+      hidden: false,
     });
   });
 
-  it("hides sort columns from the visible column list", () => {
+  it("shows sort columns unless they are explicitly hidden", () => {
     const resolvedView: MindooDBAppResolvedViewDefinition = {
       id: "v1",
       categorizationStyle: "category_then_document",
@@ -100,10 +100,21 @@ describe("runtimeViews", () => {
           totalMode: "none",
           hidden: false,
         },
+        {
+          id: "hiddenOnly",
+          name: "hiddenOnly",
+          title: "Hidden only",
+          role: "display",
+          expression: { mode: "field", field: "hiddenOnly" },
+          sorting: "none",
+          totalMode: "none",
+          hidden: true,
+        },
       ],
     };
 
-    expect(getVisibleViewColumns(resolvedView)).toHaveLength(1);
+    expect(getVisibleViewColumns(resolvedView)).toHaveLength(2);
     expect(getVisibleViewColumns(resolvedView)[0]?.name).toBe("visible");
+    expect(getVisibleViewColumns(resolvedView)[1]?.name).toBe("sortOnly");
   });
 });

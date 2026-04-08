@@ -195,6 +195,14 @@ function handleUpload(event: Event) {
               </div>
               <div class="panel__actions">
                 <Button
+                  label="Preview"
+                  size="small"
+                  severity="secondary"
+                  text
+                  :disabled="!app.canPreviewAttachment(attachment.fileName, attachment.mimeType)"
+                  @click="app.previewAttachment(attachment.fileName)"
+                />
+                <Button
                   label="Extract"
                   size="small"
                   severity="secondary"

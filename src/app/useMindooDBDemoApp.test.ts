@@ -1,23 +1,27 @@
 import { effectScope } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { MindooDBAppAttachmentApi } from "mindoodb-app-sdk";
 import type { MockMindooDBAppSessionController } from "mindoodb-app-sdk/testing";
 import { createMockMindooDBAppBridge } from "mindoodb-app-sdk/testing";
 
 import { useMindooDBDemoApp } from "@/app/useMindooDBDemoApp";
 
 let bridgeController: MockMindooDBAppSessionController;
+let openPreview: ReturnType<typeof vi.fn<MindooDBAppAttachmentApi["openPreview"]>>;
 
 vi.mock("mindoodb-app-sdk", async () => {
   const actual = await vi.importActual<typeof import("mindoodb-app-sdk")>("mindoodb-app-sdk");
   return {
     ...actual,
+    canPreviewAttachment: actual.canPreviewAttachment ?? (() => null),
     createMindooDBAppBridge: () => bridgeController.bridge,
   };
 });
 
 describe("useMindooDBDemoApp", () => {
   beforeEach(() => {
+    openPreview = vi.fn(async () => ({ ok: true as const }));
     bridgeController = createMockMindooDBAppBridge({
       launchContext: {
         appId: "mindoodb-app-example",
@@ -60,6 +64,7 @@ describe("useMindooDBDemoApp", () => {
             async list() {
               return [];
             },
+            openPreview,
           },
         },
       }],
@@ -102,6 +107,21 @@ describe("useMindooDBDemoApp", () => {
     });
     expect(app.eventLog.value[0]?.kind).toBe("viewport-changed");
     expect(app.eventLog.value.some((entry) => entry.kind === "theme-changed")).toBe(true);
+
+    scope.stop();
+  });
+
+  it("opens the Haven attachment preview through the SDK", async () => {
+    const scope = effectScope();
+    const app = scope.run(() => useMindooDBDemoApp());
+    if (!app) {
+      throw new Error("Expected the composable to initialize.");
+    }
+
+    await app.connect();
+    await app.previewAttachment("invoice.pdf");
+
+    expect(openPreview).toHaveBeenCalledWith("doc-1", "invoice.pdf");
 
     scope.stop();
   });

@@ -93,7 +93,7 @@ export function toRuntimeViewDefinition(view: MindooDBAppResolvedViewDefinition)
         ? fieldExpression(column.expression.field)
         : structuredClone(column.expression.expression),
       sorting: column.sorting,
-      hidden: column.role === "sort" ? true : column.hidden,
+      hidden: column.hidden,
       totalMode: column.totalMode,
     })),
   };
@@ -104,5 +104,5 @@ export function getPrimaryViewSource(view: MindooDBAppResolvedViewDefinition): M
 }
 
 export function getVisibleViewColumns(view: MindooDBAppResolvedViewDefinition) {
-  return view.columns.filter((column) => !column.hidden && column.role !== "sort");
+  return view.columns.filter((column) => !column.hidden);
 }
