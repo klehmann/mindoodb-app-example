@@ -31,7 +31,7 @@ function toFlexFieldPath(field: string) {
 }
 
 function createFlexDocument(fields: string[]) {
-  return new Document<IndexedDocument>({
+  return new Document<any>({
     tokenize: "forward",
     fastupdate: true,
     document: {
@@ -141,7 +141,7 @@ async function iterateAllChanges(
 }
 
 export function createDocumentSearchIndex() {
-  let index: Document<IndexedDocument> | null = null;
+  let index: Document<any> | null = null;
   let indexedFields: string[] = [];
   let cursor: string | null = null;
 
