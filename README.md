@@ -1,8 +1,8 @@
 # MindooDB App Example
 
-A complete reference application for the [MindooDB App SDK](https://github.com/niclas-niclas/mindoodb-app-sdk), demonstrating every major SDK feature in a working Vue 3 app. Use it to learn how MindooDB apps work, or fork it as a starting point for your own app.
+A complete reference application for the [MindooDB App SDK](https://github.com/klehmann/mindoodb-app-example), demonstrating every major SDK feature in a working Vue 3 app. Use it to learn how MindooDB apps work, or fork it as a starting point for your own app.
 
-**Live demo:** https://mindoodb-app-example.mindoo.de (register this URL in Haven to try it)
+**Live demo:** https://app-example.mindoodb.com (register this URL in Haven to try it)
 
 ## What this app demonstrates
 
@@ -46,7 +46,7 @@ The example app covers the full surface of the MindooDB App SDK, organized into 
 The fastest way to explore the MindooDB platform is to run this app locally and connect it to Haven:
 
 ```bash
-git clone https://github.com/niclas-niclas/mindoodb-app-example.git
+git clone https://github.com/klehmann/mindoodb-app-example.git
 cd mindoodb-app-example
 npm install
 npm run dev:local
@@ -135,4 +135,4 @@ Run the tests:
 npm test
 ```
 
-For guidance on testing your own MindooDB apps, see the [SDK testing documentation](https://github.com/niclas-niclas/mindoodb-app-sdk/blob/main/TESTING.md).
+For guidance on testing your own MindooDB apps, see the [SDK testing documentation](https://github.com/klehmann/mindoodb-app-sdk/blob/main/TESTING.md).
