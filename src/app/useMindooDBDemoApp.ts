@@ -6,6 +6,7 @@ import {
   type MindooDBAppDatabase,
   type MindooDBAppDatabaseInfo,
   type MindooDBAppDocument,
+  type MindooDBAppDocumentSummary,
   type MindooDBAppDocumentHistoryEntry,
   type MindooDBAppHistoricalDocument,
   type MindooDBAppHostTheme,
@@ -19,7 +20,15 @@ import {
 } from "mindoodb-app-sdk";
 
 import { applyAppTheme, normalizeAppTheme } from "@/lib/theme";
+import {
+  createDocumentSearchIndex,
+  type SearchIndexCreateStats,
+  type SearchIndexSyncStats,
+} from "@/features/databases/lib/searchIndex";
 import { getVisibleViewColumns } from "@/features/views/lib/runtimeViews";
+
+type DocumentListMode = "all" | "existing" | "deleted";
+type SearchIndexStats = SearchIndexCreateStats | SearchIndexSyncStats;
 
 /**
  * One entry in the Events tab log, recording theme and viewport changes
@@ -93,6 +102,7 @@ async function readAttachmentBlob(database: MindooDBAppDatabase, docId: string, 
  * gate actions declaratively.
  */
 export function useMindooDBDemoApp() {
+  const searchIndex = createDocumentSearchIndex();
   const session = ref<MindooDBAppSession | null>(null);
   const launchContext = ref<MindooDBAppLaunchContext | null>(null);
   const databases = ref<MindooDBAppDatabaseInfo[]>([]);
@@ -105,8 +115,10 @@ export function useMindooDBDemoApp() {
   const hostViewport = ref<MindooDBAppViewport | null>(null);
   const eventLog = ref<DemoEventEntry[]>([]);
 
-  const documents = ref<MindooDBAppDocument[]>([]);
+  // Keep the browsable list as lightweight summaries; the full document is loaded lazily on selection.
+  const documentListEntries = ref<MindooDBAppDocumentSummary[]>([]);
   const selectedDocumentId = ref<string | null>(null);
+  const selectedDocument = ref<MindooDBAppDocument | null>(null);
   const editorJson = ref("{\n}");
   const editorMode = ref<"create" | "edit">("create");
   const historyEntries = ref<MindooDBAppDocumentHistoryEntry[]>([]);
@@ -115,6 +127,15 @@ export function useMindooDBDemoApp() {
   const attachments = ref<MindooDBAppAttachmentInfo[]>([]);
   const attachmentMessage = ref<string | null>(null);
   const busyAction = ref<string | null>(null);
+  const documentIdFilter = ref("");
+  const documentListMode = ref<DocumentListMode>("existing");
+  const availableSearchFields = ref<string[]>([]);
+  const searchFieldSelection = ref<string[]>([]);
+  const indexedFields = ref<string[]>([]);
+  const searchQuery = ref("");
+  const searchResults = ref<string[]>([]);
+  const indexCursor = ref<string | null>(null);
+  const indexStats = ref<SearchIndexStats | null>(null);
 
   const selectedViewId = ref<string | null>(null);
   const viewRows = ref<MindooDBAppViewPageResult["rows"]>([]);
@@ -128,8 +149,8 @@ export function useMindooDBDemoApp() {
   const selectedDatabaseInfo = computed(() =>
     databases.value.find((database) => database.id === selectedDatabaseId.value) ?? null,
   );
-  const selectedDocument = computed(() =>
-    documents.value.find((document) => document.id === selectedDocumentId.value) ?? null,
+  const selectedDocumentSummary = computed(() =>
+    documentListEntries.value.find((document) => document.id === selectedDocumentId.value) ?? null,
   );
   const availableViews = computed(() => launchContext.value?.views ?? []);
   const selectedView = computed(() =>
@@ -145,6 +166,28 @@ export function useMindooDBDemoApp() {
   const canUseAttachments = computed(() => selectedDatabaseInfo.value?.capabilities.includes("attachments") ?? false);
   const canRead = computed(() => selectedDatabaseInfo.value?.capabilities.includes("read") ?? false);
   const isBusy = computed(() => Boolean(busyAction.value) || loading.value);
+  const hasSearchIndex = computed(() => indexedFields.value.length > 0);
+  // The UI filters the already-fetched summary list locally by ID and optional full-text hits.
+  const documents = computed(() => {
+    const idFilter = documentIdFilter.value.trim().toLowerCase();
+    const activeSearchResults = searchQuery.value.trim()
+      ? new Set(searchResults.value)
+      : null;
+    return documentListEntries.value.filter((document) => {
+      if (idFilter && !document.id.toLowerCase().includes(idFilter)) {
+        return false;
+      }
+      if (activeSearchResults && !activeSearchResults.has(document.id)) {
+        return false;
+      }
+      return true;
+    });
+  });
+  const canSaveCurrentDocument = computed(() =>
+    editorMode.value === "create"
+      ? canCreate.value
+      : canUpdate.value && Boolean(selectedDocument.value),
+  );
 
   function setSuccess(message: string | null) {
     successMessage.value = message;
@@ -174,6 +217,7 @@ export function useMindooDBDemoApp() {
   }
 
   function resetDatabasePanels() {
+    selectedDocument.value = null;
     historyEntries.value = [];
     selectedHistoricalDocument.value = null;
     historyMessage.value = null;
@@ -184,43 +228,121 @@ export function useMindooDBDemoApp() {
   function startCreateDocument() {
     editorMode.value = "create";
     selectedDocumentId.value = null;
+    selectedDocument.value = null;
     editorJson.value = "{\n}";
     resetDatabasePanels();
     setSuccess(null);
   }
 
-  function selectDocument(docId: string | null) {
+  /** Walk the paged SDK list API until the current browse mode is fully loaded. */
+  async function listAllDocumentEntries(mode: DocumentListMode) {
+    if (!selectedDatabase.value) {
+      return [];
+    }
+    const items: MindooDBAppDocumentSummary[] = [];
+    let cursor: string | null = null;
+
+    while (true) {
+      const page = await selectedDatabase.value.documents.list({
+        cursor,
+        limit: 250,
+        status: mode,
+      });
+      items.push(...page.items);
+      if (!page.nextCursor || page.nextCursor === cursor) {
+        break;
+      }
+      cursor = page.nextCursor;
+    }
+
+    return items;
+  }
+
+  /** Infer candidate search fields from the currently visible non-deleted summaries. */
+  async function refreshAvailableSearchFields() {
+    availableSearchFields.value = [];
+    if (!documentListEntries.value.length) {
+      return;
+    }
+    const keys = new Set<string>();
+    const sampleEntries = documentListEntries.value
+      .filter((entry) => !entry.isDeleted && entry.data)
+      .slice(0, 25);
+    for (const entry of sampleEntries) {
+      Object.keys(entry.data ?? {}).forEach((key) => keys.add(key));
+    }
+    availableSearchFields.value = Array.from(keys).sort((left, right) => left.localeCompare(right));
+    if (!searchFieldSelection.value.length) {
+      searchFieldSelection.value = [...availableSearchFields.value];
+    } else {
+      searchFieldSelection.value = searchFieldSelection.value.filter((field) => keys.has(field));
+    }
+  }
+
+  /** Mirror the search helper's internal checkpoint and schema back into reactive UI state. */
+  function syncIndexState() {
+    const state = searchIndex.getState();
+    indexedFields.value = state.indexedFields;
+    indexCursor.value = state.cursor;
+  }
+
+  /** Reset all derived search state when switching databases or rebuilding from scratch. */
+  function resetSearchIndexState() {
+    searchIndex.clear();
+    searchFieldSelection.value = [];
+    availableSearchFields.value = [];
+    indexedFields.value = [];
+    searchQuery.value = "";
+    searchResults.value = [];
+    indexCursor.value = null;
+    indexStats.value = null;
+  }
+
+  /**
+   * Switch the editor to the chosen document.
+   *
+   * Deleted documents keep their summary row in the list, but the editor falls
+   * back to a read-only placeholder and pushes the user toward the history UI.
+   */
+  async function selectDocument(docId: string | null) {
     selectedDocumentId.value = docId;
-    const document = selectedDocument.value;
-    if (!document) {
+    resetDatabasePanels();
+    const summary = selectedDocumentSummary.value;
+    if (!docId || !summary) {
       startCreateDocument();
       return;
     }
     editorMode.value = "edit";
-    editorJson.value = stringifyJson(document.data);
-    historyMessage.value = null;
-    attachmentMessage.value = null;
+    if (summary.isDeleted) {
+      editorJson.value = "{\n}";
+      historyMessage.value = "The selected document is deleted. Use the history browser to inspect earlier revisions.";
+      attachmentMessage.value = "Deleted documents do not expose current attachments.";
+      return;
+    }
+    selectedDocument.value = await selectedDatabase.value?.documents.get(docId) ?? null;
+    editorJson.value = stringifyJson(selectedDocument.value?.data ?? {});
+    await refreshAttachments();
   }
 
+  /** Refresh the browsable document list, then keep the current selection stable if possible. */
   async function refreshDocuments(preferredDocId?: string | null) {
     if (!selectedDatabase.value || !selectedDatabaseId.value || !canRead.value) {
-      documents.value = [];
+      documentListEntries.value = [];
       startCreateDocument();
       return;
     }
 
-    const list = await selectedDatabase.value.documents.list({ limit: 100 });
-    const loaded = await Promise.all(
-      list.items.map(async (item) => await selectedDatabase.value!.documents.get(item.id)),
-    );
-    documents.value = loaded.filter((item): item is MindooDBAppDocument => Boolean(item));
+    documentListEntries.value = await listAllDocumentEntries(documentListMode.value);
+    await refreshAvailableSearchFields();
+    if (searchQuery.value.trim()) {
+      searchResults.value = searchIndex.search(searchQuery.value);
+    }
 
-    const nextDocId = preferredDocId && documents.value.some((item) => item.id === preferredDocId)
+    const nextDocId = preferredDocId && documentListEntries.value.some((item) => item.id === preferredDocId)
       ? preferredDocId
-      : documents.value[0]?.id ?? null;
+      : documents.value[0]?.id ?? documentListEntries.value[0]?.id ?? null;
     if (nextDocId) {
-      selectDocument(nextDocId);
-      await refreshAttachments();
+      await selectDocument(nextDocId);
     } else {
       startCreateDocument();
     }
@@ -229,7 +351,7 @@ export function useMindooDBDemoApp() {
   async function refreshAttachments() {
     attachments.value = [];
     attachmentMessage.value = null;
-    if (!selectedDatabase.value || !selectedDocumentId.value) {
+    if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value) {
       return;
     }
     if (!canUseAttachments.value) {
@@ -360,6 +482,7 @@ export function useMindooDBDemoApp() {
     try {
       selectedDatabaseId.value = databaseId;
       selectedDatabase.value = await session.value.openDatabase(databaseId);
+      resetSearchIndexState();
       await refreshDocuments();
       if (selectedView.value) {
         const usesSelectedDb = selectedView.value.sources.some((source) => source.databaseId === databaseId);
@@ -418,6 +541,9 @@ export function useMindooDBDemoApp() {
         if (!canUpdate.value) {
           throw new Error("The selected database does not allow document updates.");
         }
+        if (!selectedDocument.value) {
+          throw new Error("The selected document is deleted or unavailable.");
+        }
         const updated = await selectedDatabase.value.documents.update(selectedDocumentId.value, { data });
         await refreshDocuments(updated.id);
         setSuccess(`Updated document ${updated.id}.`);
@@ -433,7 +559,7 @@ export function useMindooDBDemoApp() {
   }
 
   async function deleteDocument() {
-    if (!selectedDatabase.value || !selectedDocumentId.value) {
+    if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value) {
       return;
     }
     busyAction.value = "Deleting document";
@@ -457,7 +583,7 @@ export function useMindooDBDemoApp() {
   }
 
   async function downloadAttachment(attachmentName: string) {
-    if (!selectedDatabase.value || !selectedDocumentId.value) {
+    if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value) {
       return;
     }
 
@@ -479,7 +605,7 @@ export function useMindooDBDemoApp() {
   }
 
   async function removeAttachment(attachmentName: string) {
-    if (!selectedDatabase.value || !selectedDocumentId.value) {
+    if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value) {
       return;
     }
 
@@ -519,7 +645,7 @@ export function useMindooDBDemoApp() {
    * keep bridge message sizes manageable.
    */
   async function uploadAttachments(fileList: FileList | null) {
-    if (!selectedDatabase.value || !selectedDocumentId.value || !fileList?.length) {
+    if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value || !fileList?.length) {
       return;
     }
 
@@ -628,6 +754,58 @@ export function useMindooDBDemoApp() {
     await refreshViewPage();
   }
 
+  async function createSearchIndex(fields: string[]) {
+    if (!selectedDatabase.value) {
+      return;
+    }
+    busyAction.value = "Creating full-text index";
+    error.value = null;
+    try {
+      indexStats.value = await searchIndex.createIndex(fields, selectedDatabase.value);
+      syncIndexState();
+      searchResults.value = searchQuery.value.trim() ? searchIndex.search(searchQuery.value) : [];
+      setSuccess(`Created fulltext index: ${indexStats.value.indexed} documents indexed.`);
+    } catch (indexError) {
+      console.error("Create full-text index failed", indexError);
+      error.value = readErrorMessage(indexError, "The full-text index could not be created.");
+    } finally {
+      busyAction.value = null;
+    }
+  }
+
+  /** Replay only changes since the last stored checkpoint into the in-memory FlexSearch index. */
+  async function syncSearchIndex() {
+    if (!selectedDatabase.value) {
+      return;
+    }
+    busyAction.value = "Syncing full-text index";
+    error.value = null;
+    try {
+      indexStats.value = await searchIndex.syncIndex(selectedDatabase.value);
+      syncIndexState();
+      searchResults.value = searchQuery.value.trim() ? searchIndex.search(searchQuery.value) : [];
+      setSuccess(`Updated fulltext index with ${indexStats.value.updated} changes and ${indexStats.value.deleted} deletions.`);
+      await refreshDocuments(selectedDocumentId.value);
+    } catch (indexError) {
+      console.error("Sync full-text index failed", indexError);
+      error.value = readErrorMessage(indexError, "The full-text index could not be synced.");
+    } finally {
+      busyAction.value = null;
+    }
+  }
+
+  /** Search runs entirely against the local FlexSearch index, not against Haven. */
+  function setSearchQuery(query: string) {
+    searchQuery.value = query;
+    searchResults.value = query.trim() ? searchIndex.search(query) : [];
+  }
+
+  /** The All / Existing / Deleted toggle simply re-runs the summary list query with a different status filter. */
+  async function setDocumentListMode(mode: DocumentListMode) {
+    documentListMode.value = mode;
+    await refreshDocuments(selectedDocumentId.value);
+  }
+
   onBeforeUnmount(() => {
     void disconnect();
   });
@@ -645,7 +823,10 @@ export function useMindooDBDemoApp() {
     databases,
     selectedDatabaseId,
     selectedDatabaseInfo,
+    documentIdFilter,
+    documentListMode,
     documents,
+    selectedDocumentSummary,
     selectedDocumentId,
     selectedDocument,
     editorJson,
@@ -655,6 +836,14 @@ export function useMindooDBDemoApp() {
     historyMessage,
     attachments,
     attachmentMessage,
+    availableSearchFields,
+    searchFieldSelection,
+    indexedFields,
+    hasSearchIndex,
+    searchQuery,
+    searchResults,
+    indexCursor,
+    indexStats,
     availableViews,
     selectedViewId,
     selectedView,
@@ -668,11 +857,16 @@ export function useMindooDBDemoApp() {
     canBrowseHistory,
     canUseAttachments,
     canRead,
+    canSaveCurrentDocument,
     canPreviewAttachment,
     connect,
     selectDatabase,
     startCreateDocument,
     selectDocument,
+    createSearchIndex,
+    syncSearchIndex,
+    setSearchQuery,
+    setDocumentListMode,
     saveDocument,
     deleteDocument,
     refreshDocuments,

@@ -2,6 +2,7 @@
 import Button from "primevue/button";
 import Message from "primevue/message";
 import Tag from "primevue/tag";
+import { abbreviateCanonicalName } from "mindoodb-app-sdk";
 
 import JsonCodeEditor from "@/shared/components/JsonCodeEditor.vue";
 
@@ -21,6 +22,21 @@ function formatDate(value: number | string | undefined) {
   return Number.isNaN(date.valueOf()) ? String(value) : date.toLocaleString();
 }
 
+function formatDocumentActor(value: string | undefined) {
+  return value ? abbreviateCanonicalName(value) : "";
+}
+
+function formatDocumentUpdatedAt(value: number | string | undefined) {
+  if (value == null) {
+    return "n/a";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return String(value);
+  }
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+}
+
 function handleDatabaseChange(event: Event) {
   const databaseId = (event.target as HTMLSelectElement).value;
   if (databaseId) {
@@ -32,6 +48,10 @@ function handleUpload(event: Event) {
   const input = event.target as HTMLInputElement;
   void props.app.uploadAttachments(input.files);
   input.value = "";
+}
+
+function handleSearchInput(event: Event) {
+  props.app.setSearchQuery((event.target as HTMLInputElement).value);
 }
 </script>
 
@@ -80,17 +100,121 @@ function handleUpload(event: Event) {
           </div>
         </div>
 
+        <div class="document-controls">
+          <label class="field">
+            <span class="field__label">Document ID filter</span>
+            <input v-model="app.documentIdFilter" class="native-input" type="text" placeholder="Filter document IDs" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Full-text search</span>
+            <input
+              class="native-input"
+              type="search"
+              :value="app.searchQuery"
+              :disabled="!app.hasSearchIndex"
+              placeholder="Search indexed fields"
+              @input="handleSearchInput"
+            />
+          </label>
+
+          <div class="field">
+            <span class="field__label">Show</span>
+            <div class="choice-group">
+              <label class="choice">
+                <input
+                  type="radio"
+                  name="document-mode"
+                  value="all"
+                  :checked="app.documentListMode === 'all'"
+                  @change="void app.setDocumentListMode('all')"
+                />
+                <span>All</span>
+              </label>
+              <label class="choice">
+                <input
+                  type="radio"
+                  name="document-mode"
+                  value="existing"
+                  :checked="app.documentListMode === 'existing'"
+                  @change="void app.setDocumentListMode('existing')"
+                />
+                <span>Existing</span>
+              </label>
+              <label class="choice">
+                <input
+                  type="radio"
+                  name="document-mode"
+                  value="deleted"
+                  :checked="app.documentListMode === 'deleted'"
+                  @change="void app.setDocumentListMode('deleted')"
+                />
+                <span>Deleted</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="field__label">Indexed fields</span>
+            <div v-if="app.availableSearchFields.length" class="field-picker">
+              <label v-for="field in app.availableSearchFields" :key="field" class="choice">
+                <input v-model="app.searchFieldSelection" type="checkbox" :value="field" />
+                <span>{{ field }}</span>
+              </label>
+            </div>
+            <p v-else class="panel__empty">Open a readable database with existing documents to discover searchable fields.</p>
+          </div>
+
+          <div class="panel__actions">
+            <Button
+              label="Create Index"
+              severity="secondary"
+              text
+              :disabled="!app.searchFieldSelection.length || app.isBusy"
+              @click="app.createSearchIndex(app.searchFieldSelection)"
+            />
+            <Button
+              label="Sync Index"
+              severity="secondary"
+              text
+              :disabled="!app.hasSearchIndex || app.isBusy"
+              @click="app.syncSearchIndex"
+            />
+          </div>
+
+          <Message v-if="app.hasSearchIndex" severity="secondary" :closable="false">
+            Indexed {{ app.indexedFields.join(", ") }}<span v-if="app.indexCursor"> · cursor checkpoint ready</span>
+          </Message>
+          <Message v-if="app.indexStats" severity="info" :closable="false">
+            Processed {{ app.indexStats.totalProcessed }} change(s),
+            <span v-if="'indexed' in app.indexStats">{{ app.indexStats.indexed }} indexed</span>
+            <span v-else>{{ app.indexStats.updated }} updated</span>,
+            {{ app.indexStats.deleted }} deleted.
+          </Message>
+        </div>
+
         <div v-if="app.documents.length" class="document-list">
           <button
             v-for="document in app.documents"
             :key="document.id"
             class="document-card"
             :class="{ 'document-card--active': document.id === app.selectedDocumentId }"
-            @click="app.selectDocument(document.id)"
+            @click="void app.selectDocument(document.id)"
           >
-            <strong>{{ document.id }}</strong>
-            <span>Updated: {{ formatDate(document.updatedAt) }}</span>
-            <span>{{ document.attachments?.length ?? 0 }} attachment(s)</span>
+            <div class="document-card__header">
+              <strong>{{ document.id }}</strong>
+              <Tag
+                v-if="document.isDeleted"
+                value="Deleted"
+                severity="danger"
+                rounded
+              />
+            </div>
+            <span v-if="document.identityLabel || document.publicKeyFingerprint">
+              {{ formatDocumentActor(document.identityLabel ?? document.publicKeyFingerprint) }}
+            </span>
+            <span>Updated: {{ formatDocumentUpdatedAt(document.updatedAt) }}</span>
+            <span>{{ document.attachmentCount ?? 0 }} attachment(s)</span>
           </button>
         </div>
         <p v-else class="panel__empty">No documents were returned for this database yet.</p>
@@ -106,7 +230,7 @@ function handleUpload(event: Event) {
             <Button
               label="Save"
               icon="pi pi-save"
-              :disabled="app.isBusy || (app.editorMode === 'create' ? !app.canCreate : !app.canUpdate)"
+              :disabled="app.isBusy || !app.canSaveCurrentDocument"
               @click="app.saveDocument"
             />
             <Button
@@ -176,7 +300,7 @@ function handleUpload(event: Event) {
                 class="sr-only"
                 type="file"
                 multiple
-                :disabled="!app.selectedDocumentId || !app.canUseAttachments || app.isBusy"
+                :disabled="!app.selectedDocument || !app.canUseAttachments || app.isBusy"
                 @change="handleUpload"
               />
               <span>Upload</span>
@@ -286,13 +410,24 @@ function handleUpload(event: Event) {
 
 .document-list,
 .history-list,
-.attachment-list {
+.attachment-list,
+.document-controls,
+.field-picker,
+.choice-group {
   display: grid;
   gap: 0.75rem;
 }
 
+.document-card__header,
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .document-card,
 .history-item {
+  display: flex;
   width: 100%;
   padding: 0.9rem;
   border: 1px solid var(--border);
@@ -321,6 +456,12 @@ function handleUpload(event: Event) {
 
 .native-input {
   min-width: 15rem;
+  width: 100%;
+}
+
+.field-picker,
+.choice-group {
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
 }
 
 .sr-only {

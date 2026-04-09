@@ -23,6 +23,7 @@
     "@primeuix/styled": "^0.7.4",
     "@primeuix/themes": "^2.0.3",
     "codemirror": "^6.0.2",
+    "flexsearch": "^0.8.212",
     "mindoodb-app-sdk": "0.0.5",
     "mindoodb-view-language": "0.0.5",
     "primeicons": "^7.0.0",

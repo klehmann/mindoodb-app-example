@@ -4,13 +4,15 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
-    "ignoreDeprecations": "6.0",
     "jsx": "preserve",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "mindoodb-app-sdk": ["../mindoodb-app-sdk/src/index.ts"],
+      "mindoodb-app-sdk/testing": ["../mindoodb-app-sdk/src/testing/index.ts"],
+      "mindoodb-view-language": ["../mindoodb-view-language/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"]
