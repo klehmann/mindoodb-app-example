@@ -11,6 +11,8 @@
     "dev:local": "LOCAL_MINDOODB=1 vite --port 4200",
     "build": "vue-tsc --noEmit && vite build",
     "build:local": "LOCAL_MINDOODB=1 vite build",
+    "deploy": "npm run build && wrangler deploy",
+    "preview": "npm run build && wrangler dev",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -36,6 +38,7 @@
     "vite": "^8.0.3",
     "vite-plugin-wasm": "^3.6.0",
     "vitest": "^4.1.2",
-    "vue-tsc": "^3.2.6"
+    "vue-tsc": "^3.2.6",
+    "wrangler": "^4.81.0"
   }
 }
