@@ -8,11 +8,12 @@ A complete reference application for the [MindooDB App SDK](https://github.com/k
 
 The example app covers the full surface of the MindooDB App SDK, organized into three tabs:
 
-### Databases tab -- Documents, history, and attachments
+### Databases tab -- Documents, history, attachments, and full-text search
 
 - **Database discovery** -- lists all databases Haven mapped into the app session, showing their titles and granted capabilities
 - **Capability-aware UI** -- buttons and sections are shown or hidden based on the permissions Haven granted (`read`, `create`, `update`, `delete`, `history`, `attachments`)
 - **Document CRUD** -- browse, create (with optional named decryption key), edit with a JSON code editor, and delete documents
+- **Full-text search with cursor-based incremental loading** -- builds an in-memory [FlexSearch](https://github.com/nextapps-de/flexsearch) index over user-selected document fields. The initial index is populated by paginating through the SDK's `documents.list` API with cursor-based iteration, and subsequent updates replay only the changes since the last cursor checkpoint. The document list filters results in real time as you type.
 - **Document history** -- list all revisions of a document with author and timestamp, load any historical snapshot
 - **Attachments** -- upload files via chunked streaming, download, remove, and preview attachments directly in Haven's built-in viewer
 - **Attachment previews** -- leverages Haven's native preview for images, PDF, Word (.docx), PowerPoint (.pptx), Excel (.xls/.xlsx), video (with streaming player and seek), audio (with streaming player and seek), and text formats -- all working online and offline
@@ -38,6 +39,7 @@ The example app covers the full surface of the MindooDB App SDK, organized into 
 | Build tool | Vite |
 | Language | TypeScript |
 | UI library | PrimeVue 4 |
+| Full-text search | [FlexSearch](https://github.com/nextapps-de/flexsearch) (in-memory document index) |
 | SDK | `mindoodb-app-sdk` |
 | Deployment | Cloudflare Workers (static assets) |
 
@@ -113,7 +115,8 @@ src/
   app/                    Shared app controller (useMindooDBDemoApp) and top-level shell
   assets/styles/          Global Mindoo theme styling (CSS custom properties)
   features/
-    databases/            Document CRUD, history, and attachment UI
+    databases/            Document CRUD, history, attachment UI, and full-text search
+      lib/searchIndex.ts  FlexSearch-based index with cursor-based incremental sync
     events/               Theme and viewport event display and logging
     views/                Haven view rendering helpers and categorized grid UI
   lib/                    Theme bootstrap (PrimeVue theme integration)
@@ -127,6 +130,7 @@ The app is organized by feature so each SDK integration area is easy to find and
 The test suite is intentionally focused on the non-trivial integration points:
 
 - **`src/app/useMindooDBDemoApp.test.ts`** -- verifies the shared app controller using the SDK's `createMockMindooDBAppBridge` helpers from `mindoodb-app-sdk/testing`
+- **`src/features/databases/lib/searchIndex.test.ts`** -- verifies full-text index creation, incremental cursor-based sync, and search across mixed JSON field types
 - **`src/features/views/lib/runtimeViews.test.ts`** -- verifies the adapter logic that transforms Haven-configured view definitions into runtime view shapes
 
 Run the tests:
