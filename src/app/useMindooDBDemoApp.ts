@@ -21,6 +21,10 @@ import {
 import { applyAppTheme, normalizeAppTheme } from "@/lib/theme";
 import { getVisibleViewColumns } from "@/features/views/lib/runtimeViews";
 
+/**
+ * One entry in the Events tab log, recording theme and viewport changes
+ * from both the initial launch snapshot and subsequent live updates.
+ */
 export type DemoEventEntry = {
   id: string;
   kind: "launch-theme" | "launch-viewport" | "theme-changed" | "viewport-changed";
@@ -29,6 +33,7 @@ export type DemoEventEntry = {
   payload: string;
 };
 
+/** Prepend an event entry to the log, capping at 40 entries to bound memory. */
 function addEventEntry(target: DemoEventEntry[], entry: Omit<DemoEventEntry, "id" | "createdAt">) {
   target.unshift({
     ...entry,
@@ -46,6 +51,10 @@ function readErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+/**
+ * Reads an attachment via the SDK's pull-based stream and assembles it into
+ * a single Blob suitable for browser download or preview.
+ */
 async function readAttachmentBlob(database: MindooDBAppDatabase, docId: string, attachmentName: string) {
   const stream = await database.attachments.openReadStream(docId, attachmentName);
   const chunks: Uint8Array[] = [];
@@ -64,6 +73,25 @@ async function readAttachmentBlob(database: MindooDBAppDatabase, docId: string, 
   return new Blob(chunks.map((chunk) => Uint8Array.from(chunk)));
 }
 
+/**
+ * Central Vue composable that drives the entire example application.
+ *
+ * It owns the full SDK lifecycle -- bridge connection, session management,
+ * theme/viewport event subscriptions, and teardown -- and exposes reactive
+ * state plus action functions consumed by the three UI tabs:
+ *
+ * - **Databases tab:** database selection, document CRUD, history browsing,
+ *   and attachment management (upload, download, preview, remove).
+ * - **Views tab:** opening Haven-configured virtual views, paginating rows,
+ *   and expanding/collapsing categories.
+ * - **Events tab:** theme and viewport event log populated from the initial
+ *   launch snapshot and subsequent live updates.
+ *
+ * All SDK calls flow through this composable so the UI components remain
+ * thin presentational wrappers. Capability checks (`canCreate`, `canDelete`,
+ * etc.) are derived from the active database's permission set so the UI can
+ * gate actions declaratively.
+ */
 export function useMindooDBDemoApp() {
   const session = ref<MindooDBAppSession | null>(null);
   const launchContext = ref<MindooDBAppLaunchContext | null>(null);
@@ -125,6 +153,7 @@ export function useMindooDBDemoApp() {
     }
   }
 
+  /** Apply a theme from Haven to the PrimeVue runtime and record it in the event log. */
   function applyHostTheme(theme?: MindooDBAppHostTheme | null, kind: DemoEventEntry["kind"] = "theme-changed") {
     hostTheme.value = applyAppTheme(theme);
     addEventEntry(eventLog.value, {
@@ -134,6 +163,7 @@ export function useMindooDBDemoApp() {
     });
   }
 
+  /** Store the current iframe viewport and record the event in the log. */
   function setViewport(viewport: MindooDBAppViewport | null, kind: DemoEventEntry["kind"] = "viewport-changed") {
     hostViewport.value = viewport;
     addEventEntry(eventLog.value, {
@@ -210,6 +240,10 @@ export function useMindooDBDemoApp() {
     attachments.value = await selectedDatabase.value.attachments.list(selectedDocumentId.value);
   }
 
+  /**
+   * Load the revision history for the selected document and, optionally,
+   * restore a historical snapshot at a specific timestamp.
+   */
   async function loadHistory(timestamp?: number) {
     selectedHistoricalDocument.value = null;
     historyMessage.value = null;
@@ -238,6 +272,13 @@ export function useMindooDBDemoApp() {
     );
   }
 
+  /**
+   * Establish the SDK bridge session with Haven.
+   *
+   * Creates the bridge, connects, reads the launch context, subscribes to
+   * theme/viewport events, discovers mapped databases and views, and loads
+   * initial data for the first database and view.
+   */
   async function connect() {
     loading.value = true;
     error.value = null;
@@ -280,6 +321,7 @@ export function useMindooDBDemoApp() {
     }
   }
 
+  /** Tear down event subscriptions, dispose the active view handle, and disconnect the session. */
   async function disconnect() {
     stopThemeSync?.();
     stopThemeSync = null;
@@ -307,6 +349,7 @@ export function useMindooDBDemoApp() {
     }
   }
 
+  /** Switch to a different mapped database, reload its documents, and refresh related views. */
   async function selectDatabase(databaseId: string) {
     if (!session.value) {
       return;
@@ -331,6 +374,13 @@ export function useMindooDBDemoApp() {
     }
   }
 
+  /**
+   * Create or update a document from the JSON editor content.
+   *
+   * When creating, the decryption key id is taken from `launchParameters`
+   * (falling back to `"default"`) so the demo shows how apps can use
+   * named document keys.
+   */
   async function saveDocument() {
     if (!selectedDatabase.value) {
       return;
@@ -446,6 +496,7 @@ export function useMindooDBDemoApp() {
     }
   }
 
+  /** Open Haven's built-in attachment viewer for the given file. */
   async function previewAttachment(attachmentName: string) {
     if (!selectedDatabase.value || !selectedDocumentId.value) {
       return;
@@ -462,6 +513,11 @@ export function useMindooDBDemoApp() {
     }
   }
 
+  /**
+   * Upload one or more files as document attachments using the SDK's
+   * push-based write stream. Files are chunked at 64 KB boundaries to
+   * keep bridge message sizes manageable.
+   */
   async function uploadAttachments(fileList: FileList | null) {
     if (!selectedDatabase.value || !selectedDocumentId.value || !fileList?.length) {
       return;
@@ -509,6 +565,10 @@ export function useMindooDBDemoApp() {
     viewExpansionState.value = await currentViewHandle.value.getExpansionState();
   }
 
+  /**
+   * Open the currently selected Haven-configured view via the SDK bridge,
+   * dispose any previously open handle, and load the first page of results.
+   */
   async function loadSelectedView() {
     viewRows.value = [];
     viewMessage.value = null;
