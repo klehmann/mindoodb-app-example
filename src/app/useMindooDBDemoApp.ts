@@ -631,11 +631,35 @@ export function useMindooDBDemoApp() {
     busyAction.value = "Opening attachment preview";
     error.value = null;
     try {
-      // In window runtime, the direct user gesture lives in the app window.
-      // Focusing the opener here is more likely to be honored than asking
-      // Haven to focus itself after the async bridge request arrives.
-      if (typeof window !== "undefined" && window.opener && !window.opener.closed) {
-        window.opener.focus();
+      if (launchContext.value?.runtime === "window" && typeof window !== "undefined") {
+        console.log("[attachment-preview]", "Opening window-mode preview.", {
+          documentId: selectedDocumentId.value,
+          attachmentName,
+        });
+        const previewTab = window.open("", "_blank");
+        if (!previewTab) {
+          throw new Error("The preview tab could not be opened. Allow popups and try again.");
+        }
+        previewTab.document.title = "Opening attachment preview...";
+        console.log("[attachment-preview]", "Blank preview tab opened.");
+
+        try {
+          console.log("[attachment-preview]", "Requesting prepared preview session from Haven.");
+          const previewSession = await selectedDatabase.value.attachments.preparePreviewSession(
+            selectedDocumentId.value,
+            attachmentName,
+          );
+          console.log("[attachment-preview]", "Prepared preview session received.", previewSession);
+          previewTab.location.href = previewSession.previewUrl;
+          console.log("[attachment-preview]", "Preview tab navigated.", {
+            previewUrl: previewSession.previewUrl,
+          });
+        } catch (previewError) {
+          console.error("[attachment-preview]", "Preparing preview session failed.", previewError);
+          previewTab.close();
+          throw previewError;
+        }
+        return;
       }
       await selectedDatabase.value.attachments.openPreview(selectedDocumentId.value, attachmentName);
     } catch (previewError) {
