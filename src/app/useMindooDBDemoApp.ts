@@ -631,6 +631,12 @@ export function useMindooDBDemoApp() {
     busyAction.value = "Opening attachment preview";
     error.value = null;
     try {
+      // In window runtime, the direct user gesture lives in the app window.
+      // Focusing the opener here is more likely to be honored than asking
+      // Haven to focus itself after the async bridge request arrives.
+      if (typeof window !== "undefined" && window.opener && !window.opener.closed) {
+        window.opener.focus();
+      }
       await selectedDatabase.value.attachments.openPreview(selectedDocumentId.value, attachmentName);
     } catch (previewError) {
       error.value = readErrorMessage(previewError, "The attachment preview could not be opened.");
