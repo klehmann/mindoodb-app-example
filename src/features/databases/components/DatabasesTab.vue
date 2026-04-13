@@ -372,6 +372,36 @@ function handleSearchInput(event: Event) {
   align-items: center;
 }
 
+.section-toolbar {
+  flex-wrap: wrap;
+}
+
+.field {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.capability-list {
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+}
+
+.panel__header {
+  flex-wrap: wrap;
+}
+
+.panel__header > :first-child {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.panel__actions {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
 .database-layout {
   display: grid;
   grid-template-columns: minmax(16rem, 20rem) minmax(0, 1.25fr) minmax(20rem, 0.9fr);

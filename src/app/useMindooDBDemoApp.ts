@@ -674,15 +674,21 @@ export function useMindooDBDemoApp() {
    * push-based write stream. Files are chunked at 64 KB boundaries to
    * keep bridge message sizes manageable.
    */
-  async function uploadAttachments(fileList: FileList | null) {
-    if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value || !fileList?.length) {
+  async function uploadAttachments(fileList: FileList | readonly File[] | null) {
+    const files = fileList ? Array.from(fileList) : [];
+    console.log("[mindoodb-app-example.attachments] upload requested", {
+      documentId: selectedDocumentId.value,
+      fileCount: files.length,
+      fileNames: files.map((file) => file.name),
+    });
+    if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value || !files.length) {
       return;
     }
 
     busyAction.value = "Uploading attachment";
     error.value = null;
     try {
-      for (const file of Array.from(fileList)) {
+      for (const file of files) {
         const stream = await selectedDatabase.value.attachments.openWriteStream(
           selectedDocumentId.value,
           file.name,
@@ -702,7 +708,7 @@ export function useMindooDBDemoApp() {
       }
       await refreshAttachments();
       await refreshDocuments(selectedDocumentId.value);
-      setSuccess(`Uploaded ${fileList.length} attachment${fileList.length === 1 ? "" : "s"}.`);
+      setSuccess(`Uploaded ${files.length} attachment${files.length === 1 ? "" : "s"}.`);
     } catch (uploadError) {
       error.value = readErrorMessage(uploadError, "The attachment upload failed.");
     } finally {

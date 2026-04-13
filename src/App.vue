@@ -44,6 +44,7 @@ onMounted(() => {
         <Tag :value="`${app.hostTheme.preset} preset`" severity="warn" rounded />
         <Tag :value="`${app.hostTheme.mode} mode`" severity="contrast" rounded />
         <Tag :value="`${viewportLabel} viewport`" severity="secondary" rounded />
+        <Tag v-if="app.launchContext" :value="`${app.launchContext.databases.length} mapped databases`" severity="help" rounded />
         <Tag v-if="app.launchContext" :value="`${app.launchContext.views.length} mapped views`" severity="info" rounded />
       </div>
 

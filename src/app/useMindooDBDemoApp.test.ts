@@ -10,6 +10,7 @@ import { useMindooDBDemoApp } from "@/app/useMindooDBDemoApp";
 let bridgeController: MockMindooDBAppSessionController;
 let openPreview: ReturnType<typeof vi.fn<MindooDBAppAttachmentApi["openPreview"]>>;
 let preparePreviewSession: ReturnType<typeof vi.fn<MindooDBAppAttachmentApi["preparePreviewSession"]>>;
+let openWriteStream: ReturnType<typeof vi.fn<MindooDBAppAttachmentApi["openWriteStream"]>>;
 
 vi.mock("mindoodb-app-sdk", async () => {
   const actual = await vi.importActual<typeof import("mindoodb-app-sdk")>("mindoodb-app-sdk");
@@ -22,10 +23,23 @@ vi.mock("mindoodb-app-sdk", async () => {
 
 describe("useMindooDBDemoApp", () => {
   beforeEach(() => {
+    const uploadedAttachments: Array<{ attachmentId: string; fileName: string; mimeType: string; size: number }> = [];
     openPreview = vi.fn(async () => ({ ok: true as const }));
     preparePreviewSession = vi.fn(async () => ({
       sessionId: "preview-session-1",
       previewUrl: "https://haven.example/attachments/preview/preview-session-1",
+    }));
+    openWriteStream = vi.fn(async (_docId: string, attachmentName: string, mimeType?: string) => ({
+      write: vi.fn(async () => {}),
+      close: vi.fn(async () => {
+        uploadedAttachments.push({
+          attachmentId: `${attachmentName}-id`,
+          fileName: attachmentName,
+          mimeType: mimeType || "application/octet-stream",
+          size: 5,
+        });
+      }),
+      abort: vi.fn(async () => {}),
     }));
     bridgeController = createMockMindooDBAppBridge({
       launchContext: {
@@ -67,10 +81,11 @@ describe("useMindooDBDemoApp", () => {
           },
           attachments: {
             async list() {
-              return [];
+              return [...uploadedAttachments];
             },
             preparePreviewSession,
             openPreview,
+            openWriteStream,
           },
         },
       }],
@@ -199,5 +214,42 @@ describe("useMindooDBDemoApp", () => {
 
     scope.stop();
     openSpy.mockRestore();
+  });
+
+  it("reports the uploaded attachment count from a snapshot instead of a live FileList", async () => {
+    const scope = effectScope();
+    const app = scope.run(() => useMindooDBDemoApp());
+    if (!app) {
+      throw new Error("Expected the composable to initialize.");
+    }
+
+    await app.connect();
+
+    const backingFiles = [new File(["hello"], "invoice.pdf", { type: "application/pdf" })];
+    const liveFileList = {
+      get length() {
+        return backingFiles.length;
+      },
+      item(index: number) {
+        return backingFiles[index] ?? null;
+      },
+      [Symbol.iterator]: function *() {
+        yield* backingFiles;
+      },
+    } as unknown as FileList;
+
+    const uploadPromise = app.uploadAttachments(liveFileList);
+    backingFiles.splice(0, backingFiles.length);
+    await uploadPromise;
+
+    expect(openWriteStream).toHaveBeenCalledWith("doc-1", "invoice.pdf", "application/pdf");
+    expect(app.successMessage.value).toBe("Uploaded 1 attachment.");
+    expect(app.attachments.value).toEqual([
+      expect.objectContaining({
+        fileName: "invoice.pdf",
+      }),
+    ]);
+
+    scope.stop();
   });
 });
