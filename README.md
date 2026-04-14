@@ -23,7 +23,9 @@ The example app covers the full surface of the MindooDB App SDK, organized into 
 - **Haven-configured views** -- lists the view definitions that a Haven administrator attached to the app registration
 - **Column metadata** -- displays the dynamic column definitions, roles, and sorting for each view
 - **Categorized result grid** -- materializes a paginated, categorized grid for the selected view
-- **Expand / Collapse** -- full category expansion control (expand all, collapse all, toggle individual categories)
+- **Navigator cursor** -- step through entries one at a time (first, last, next, prev, parent, first child) with a live "current entry" detail card
+- **Expand / Collapse** -- full category expansion control (expand / collapse current entry, expand all, collapse all, toggle individual categories)
+- **Category awareness** -- dynamically detects whether the selected view has categories and shows category-specific controls only when relevant
 
 ### Events tab -- Theme and viewport
 
@@ -112,15 +114,20 @@ Alternatively, Haven can host app bundles directly via its service worker. Haven
 
 ```text
 src/
-  app/                    Shared app controller (useMindooDBDemoApp) and top-level shell
-  assets/styles/          Global Mindoo theme styling (CSS custom properties)
+  app/
+    useMindooDBDemoApp.ts       Root orchestrator: session lifecycle, shared state, cross-tab wiring
+    useDocumentsSection.ts      Documents tab: CRUD, history, attachments, full-text search
+    useViewsSection.ts          Views tab: navigator traversal, expansion, batched entry reading
+    useEventsSection.ts         Events tab: host theme/viewport tracking, event log
+    useMindooDBDemoApp.test.ts  Integration tests using the SDK mock bridge
+  assets/styles/                Global Mindoo theme styling (CSS custom properties)
   features/
-    databases/            Document CRUD, history, attachment UI, and full-text search
-      lib/searchIndex.ts  FlexSearch-based index with cursor-based incremental sync
-    events/               Theme and viewport event display and logging
-    views/                Haven view rendering helpers and categorized grid UI
-  lib/                    Theme bootstrap (PrimeVue theme integration)
-  shared/components/      Reusable components (JSON code editor)
+    databases/                  Document CRUD, history, attachment UI, and full-text search
+      lib/searchIndex.ts        FlexSearch-based index with cursor-based incremental sync
+    events/                     Theme and viewport event display and logging
+    views/                      Haven view rendering helpers and categorized grid UI
+  lib/                          Theme bootstrap (PrimeVue theme integration)
+  shared/components/            Reusable components (JSON code editor)
 ```
 
 The app is organized by feature so each SDK integration area is easy to find and study independently.
