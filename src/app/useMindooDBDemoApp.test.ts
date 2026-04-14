@@ -1,7 +1,7 @@
 import { effectScope } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { MindooDBAppAttachmentApi } from "mindoodb-app-sdk";
+import type { MindooDBAppAttachmentApi, MindooDBAppViewEntry, MindooDBAppViewNavigator } from "mindoodb-app-sdk";
 import type { MockMindooDBAppSessionController } from "mindoodb-app-sdk/testing";
 import { createMockMindooDBAppBridge } from "mindoodb-app-sdk/testing";
 
@@ -144,6 +144,286 @@ describe("useMindooDBDemoApp", () => {
 
     expect(openPreview).toHaveBeenCalledWith("doc-1", "invoice.pdf");
     expect(preparePreviewSession).not.toHaveBeenCalled();
+
+    scope.stop();
+  });
+
+  it("tracks the current navigator entry for dynamic Haven views", async () => {
+    const entries: MindooDBAppViewEntry[] = [
+      {
+        key: "cat-alpha",
+        kind: "category",
+        origin: "main",
+        docId: "category-alpha",
+        level: 0,
+        parentKey: null,
+        categoryPath: ["Alpha"],
+        columnValues: { project: "Alpha", title: null },
+        descendantDocumentCount: 1,
+        childCategoryCount: 0,
+        childDocumentCount: 1,
+        position: "0",
+        expanded: true,
+        selected: false,
+        isVisible: true,
+      },
+      {
+        key: "doc-1",
+        kind: "document",
+        origin: "main",
+        docId: "doc-1",
+        level: 1,
+        parentKey: "cat-alpha",
+        categoryPath: ["Alpha"],
+        columnValues: { project: "Alpha", title: "Hello" },
+        descendantDocumentCount: 0,
+        childCategoryCount: 0,
+        childDocumentCount: 0,
+        position: "1",
+        expanded: false,
+        selected: false,
+        isVisible: true,
+      },
+    ];
+    let currentIndex = -1;
+    const navigator = {
+      async getDefinition() {
+        return {
+          title: "Tasks by project",
+          columns: [],
+        };
+      },
+      async refresh() {},
+      async getCurrentEntry() {
+        return entries[currentIndex] ?? null;
+      },
+      async gotoFirst() {
+        currentIndex = entries.length ? 0 : -1;
+        return currentIndex >= 0;
+      },
+      async gotoLast() {
+        currentIndex = entries.length - 1;
+        return currentIndex >= 0;
+      },
+      async gotoNext() {
+        if (currentIndex + 1 >= entries.length) {
+          return false;
+        }
+        currentIndex += 1;
+        return true;
+      },
+      async gotoPrev() {
+        if (currentIndex <= 0) {
+          return false;
+        }
+        currentIndex -= 1;
+        return true;
+      },
+      async gotoNextSibling() {
+        return false;
+      },
+      async gotoPrevSibling() {
+        return false;
+      },
+      async gotoParent() {
+        if (currentIndex !== 1) {
+          return false;
+        }
+        currentIndex = 0;
+        return true;
+      },
+      async gotoFirstChild() {
+        if (currentIndex !== 0) {
+          return false;
+        }
+        currentIndex = 1;
+        return true;
+      },
+      async gotoLastChild() {
+        return false;
+      },
+      async gotoPos(position: string) {
+        const index = entries.findIndex((entry) => entry.position === position);
+        if (index < 0) {
+          return false;
+        }
+        currentIndex = index;
+        return true;
+      },
+      async getPos(position: string) {
+        return entries.find((entry) => entry.position === position) ?? null;
+      },
+      async findCategoryEntryByParts(parts: unknown[]) {
+        return entries.find((entry) => entry.kind === "category" && JSON.stringify(entry.categoryPath) === JSON.stringify(parts)) ?? null;
+      },
+      async entriesForward() {
+        return {
+          entries,
+          nextPosition: null,
+          hasMore: false,
+        };
+      },
+      async entriesBackward() {
+        return {
+          entries: [...entries].reverse(),
+          nextPosition: null,
+          hasMore: false,
+        };
+      },
+      async gotoNextSelected() {
+        return false;
+      },
+      async gotoPrevSelected() {
+        return false;
+      },
+      async select() {},
+      async deselect() {},
+      async selectAllEntries() {},
+      async deselectAllEntries() {},
+      async isSelected() {
+        return false;
+      },
+      async getSelectionState() {
+        return {
+          selectAllByDefault: false,
+          entryKeys: [],
+        };
+      },
+      async setSelectionState() {},
+      async expand() {},
+      async collapse() {},
+      async expandAll() {},
+      async collapseAll() {},
+      async expandToLevel() {},
+      async isExpanded() {
+        return true;
+      },
+      async getExpansionState() {
+        return {
+          expandAllByDefault: false,
+          expandLevel: 0,
+          entryKeys: ["cat-alpha"],
+        };
+      },
+      async setExpansionState() {},
+      async childEntries() {
+        return [];
+      },
+      async childCategories() {
+        return [];
+      },
+      async childDocuments() {
+        return [];
+      },
+      async childCategoriesByKey() {
+        return [];
+      },
+      async childDocumentsByKey() {
+        return [];
+      },
+      async childCategoriesBetween() {
+        return [];
+      },
+      async childDocumentsBetween() {
+        return [];
+      },
+      async getSortedDocIds() {
+        return [{ origin: "main", docId: "doc-1" }];
+      },
+      async getSortedDocIdsScoped() {
+        return [{ origin: "main", docId: "doc-1" }];
+      },
+      async dispose() {},
+    } satisfies MindooDBAppViewNavigator;
+
+    bridgeController = createMockMindooDBAppBridge({
+      launchContext: {
+        appId: "mindoodb-app-example",
+        views: [{
+          id: "tasks-by-project",
+          description: "Tasks grouped by project",
+          categorizationStyle: "category_then_document",
+          previewMode: "tree",
+          filter: {
+            mode: "formula",
+            expression: { kind: "literal", value: true },
+          },
+          columns: [
+            {
+              id: "project",
+              name: "project",
+              title: "Project",
+              role: "category",
+              expression: { mode: "field", field: "project" },
+              sorting: "ascending",
+              totalMode: "none",
+              hidden: false,
+            },
+            {
+              id: "title",
+              name: "title",
+              title: "Title",
+              role: "display",
+              expression: { mode: "field", field: "title" },
+              sorting: "ascending",
+              totalMode: "none",
+              hidden: false,
+            },
+          ],
+          sources: [{
+            origin: "main",
+            databaseId: "main",
+            title: "Main",
+            tenantId: "tenant-1",
+            databaseName: "Main",
+            targetMode: "local",
+          }],
+        }],
+      },
+      databases: [{
+        info: {
+          id: "main",
+          title: "Main",
+          capabilities: ["read"],
+        },
+        methods: {
+          documents: {
+            async list() {
+              return { items: [], nextCursor: null };
+            },
+          },
+          views: {
+            async open() {
+              return navigator;
+            },
+          },
+        },
+      }],
+    });
+
+    const scope = effectScope();
+    const app = scope.run(() => useMindooDBDemoApp());
+    if (!app) {
+      throw new Error("Expected the composable to initialize.");
+    }
+
+    await app.connect();
+
+    expect(app.selectedViewId.value).toBe("tasks-by-project");
+    expect(app.viewHasCategories.value).toBe(true);
+    expect(app.currentViewEntry.value?.key).toBe("cat-alpha");
+
+    await app.gotoNextViewEntry();
+    expect(app.currentViewEntry.value?.key).toBe("doc-1");
+
+    await app.gotoParentViewEntry();
+    expect(app.currentViewEntry.value?.key).toBe("cat-alpha");
+
+    await app.gotoFirstChildViewEntry();
+    expect(app.currentViewEntry.value?.key).toBe("doc-1");
+
+    await app.focusViewEntry(entries[0]!);
+    expect(app.currentViewEntry.value?.key).toBe("cat-alpha");
 
     scope.stop();
   });

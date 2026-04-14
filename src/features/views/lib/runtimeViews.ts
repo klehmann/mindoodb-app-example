@@ -1,7 +1,7 @@
 /**
  * Adapter layer that converts **Haven-configured view definitions**
  * (`MindooDBAppResolvedViewDefinition`) into the **runtime view definitions**
- * (`MindooDBAppViewDefinition`) that the SDK's `session.createView()` expects.
+ * (`MindooDBAppViewDefinition`) that the SDK's navigator APIs expect.
  *
  * Haven stores view definitions in a user-friendly authoring format -- visual
  * filter rules, field-or-formula column expressions, a "sort" column role, etc.

@@ -1,3 +1,39 @@
+/**
+ * Central Vue composable powering the MindooDB example application.
+ *
+ * This file is the single source of truth for the app's reactive state and
+ * all user-facing actions.  It creates and manages the SDK bridge session,
+ * subscribes to host events (theme, viewport), and exposes a flat public
+ * surface consumed by the three UI tabs:
+ *
+ * - **Databases** -- database selection, document CRUD (list / get / create /
+ *   update / delete), revision history browsing, attachment upload / download /
+ *   preview / remove, and client-side full-text search via FlexSearch.
+ * - **Views** -- opening Haven-configured virtual views through a stateful
+ *   navigator, cursor-based traversal (first / last / next / prev / parent /
+ *   child), category expansion / collapse, and batched entry reading.
+ * - **Events** -- a rolling log of theme and viewport push-events received
+ *   from the Haven host.
+ *
+ * ## Lifecycle
+ *
+ * 1. The hosting Vue component calls `connect()` on mount. This performs the
+ *    `postMessage` handshake, reads the launch context, subscribes to host
+ *    events, and loads the first database and view.
+ * 2. All SDK calls are channelled through action functions exposed by the
+ *    composable; the UI components remain thin presentational wrappers.
+ * 3. `onBeforeUnmount` triggers `disconnect()`, which disposes the active
+ *    navigator, tears down event subscriptions, and closes the session.
+ *
+ * ## Error / busy model
+ *
+ * A single `error` ref and a `busyAction` ref gate the entire UI. Every
+ * long-running action sets `busyAction` while in flight so the UI can
+ * disable controls, and clears it in a `finally` block. `isBusy` is a
+ * computed that combines `busyAction` with the initial `loading` flag.
+ *
+ * @module useMindooDBDemoApp
+ */
 import { computed, onBeforeUnmount, ref } from "vue";
 import {
   canPreviewAttachment,
@@ -13,10 +49,9 @@ import {
   type MindooDBAppLaunchContext,
   type MindooDBAppSession,
   type MindooDBAppViewport,
-  type MindooDBAppViewExpansionState,
-  type MindooDBAppViewHandle,
-  type MindooDBAppViewPageResult,
-  type MindooDBAppViewRow,
+  type MindooDBAppViewEntry,
+  type MindooDBAppViewNavigator,
+  type MindooDBAppViewNavigatorExpansionState,
 } from "mindoodb-app-sdk";
 
 import { applyAppTheme, normalizeAppTheme } from "@/lib/theme";
@@ -27,7 +62,10 @@ import {
 } from "@/features/databases/lib/searchIndex";
 import { getVisibleViewColumns } from "@/features/views/lib/runtimeViews";
 
+/** Filter applied to the document list API: show all, only live, or only soft-deleted documents. */
 type DocumentListMode = "all" | "existing" | "deleted";
+
+/** Union of the stats objects returned after creating or incrementally syncing the FlexSearch index. */
 type SearchIndexStats = SearchIndexCreateStats | SearchIndexSyncStats;
 
 /**
@@ -52,10 +90,12 @@ function addEventEntry(target: DemoEventEntry[], entry: Omit<DemoEventEntry, "id
   target.splice(40);
 }
 
+/** Pretty-print any value as indented JSON, defaulting to `{}` for nullish input. */
 function stringifyJson(value: unknown) {
   return JSON.stringify(value ?? {}, null, 2);
 }
 
+/** Extract the `.message` from an Error, or return the provided fallback string. */
 function readErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
@@ -91,8 +131,8 @@ async function readAttachmentBlob(database: MindooDBAppDatabase, docId: string, 
  *
  * - **Databases tab:** database selection, document CRUD, history browsing,
  *   and attachment management (upload, download, preview, remove).
- * - **Views tab:** opening Haven-configured virtual views, paginating rows,
- *   and expanding/collapsing categories.
+ * - **Views tab:** opening Haven-configured virtual views, reading navigator
+ *   batches, and expanding/collapsing categories.
  * - **Events tab:** theme and viewport event log populated from the initial
  *   launch snapshot and subsequent live updates.
  *
@@ -103,6 +143,8 @@ async function readAttachmentBlob(database: MindooDBAppDatabase, docId: string, 
  */
 export function useMindooDBDemoApp() {
   const searchIndex = createDocumentSearchIndex();
+
+  // ── Session & global UI state ──────────────────────────────────────
   const session = ref<MindooDBAppSession | null>(null);
   const launchContext = ref<MindooDBAppLaunchContext | null>(null);
   const databases = ref<MindooDBAppDatabaseInfo[]>([]);
@@ -115,7 +157,9 @@ export function useMindooDBDemoApp() {
   const hostViewport = ref<MindooDBAppViewport | null>(null);
   const eventLog = ref<DemoEventEntry[]>([]);
 
-  // Keep the browsable list as lightweight summaries; the full document is loaded lazily on selection.
+  // ── Document browsing & editing state ──────────────────────────────
+  // The browsable list stores lightweight summaries; the full document
+  // body is loaded lazily when a row is selected.
   const documentListEntries = ref<MindooDBAppDocumentSummary[]>([]);
   const selectedDocumentId = ref<string | null>(null);
   const selectedDocument = ref<MindooDBAppDocument | null>(null);
@@ -129,6 +173,8 @@ export function useMindooDBDemoApp() {
   const busyAction = ref<string | null>(null);
   const documentIdFilter = ref("");
   const documentListMode = ref<DocumentListMode>("existing");
+
+  // ── Full-text search state (client-side FlexSearch) ────────────────
   const availableSearchFields = ref<string[]>([]);
   const searchFieldSelection = ref<string[]>([]);
   const indexedFields = ref<string[]>([]);
@@ -137,14 +183,25 @@ export function useMindooDBDemoApp() {
   const indexCursor = ref<string | null>(null);
   const indexStats = ref<SearchIndexStats | null>(null);
 
+  // ── View navigator state ───────────────────────────────────────────
   const selectedViewId = ref<string | null>(null);
-  const viewRows = ref<MindooDBAppViewPageResult["rows"]>([]);
-  const viewExpansionState = ref<MindooDBAppViewExpansionState | null>(null);
+  /** The current page of serialised view entries shown in the UI. */
+  const viewRows = ref<MindooDBAppViewEntry[]>([]);
+  /** Snapshot of the navigator's expansion state (expand-all default + toggled keys). */
+  const viewExpansionState = ref<MindooDBAppViewNavigatorExpansionState | null>(null);
+  /** The entry the host-side navigator cursor is currently pointing at. */
+  const currentViewEntry = ref<MindooDBAppViewEntry | null>(null);
+  /** Whether the last `entriesForward` call indicated more entries beyond the batch limit. */
+  const viewHasMore = ref(false);
   const viewMessage = ref<string | null>(null);
-  const currentViewHandle = ref<MindooDBAppViewHandle | null>(null);
+  /** The live navigator handle; `null` until a view has been opened. */
+  const currentViewNavigator = ref<MindooDBAppViewNavigator | null>(null);
 
+  // ── Host event teardown handles ────────────────────────────────────
   let stopThemeSync: (() => void) | null = null;
   let stopViewportSync: (() => void) | null = null;
+
+  // ── Derived / computed state ─────────────────────────────────────────
 
   const selectedDatabaseInfo = computed(() =>
     databases.value.find((database) => database.id === selectedDatabaseId.value) ?? null,
@@ -152,22 +209,39 @@ export function useMindooDBDemoApp() {
   const selectedDocumentSummary = computed(() =>
     documentListEntries.value.find((document) => document.id === selectedDocumentId.value) ?? null,
   );
+  /** All Haven-configured view definitions from the launch context. */
   const availableViews = computed(() => launchContext.value?.views ?? []);
   const selectedView = computed(() =>
     availableViews.value.find((view) => view.id === selectedViewId.value) ?? null,
   );
+  /** Non-hidden columns of the selected view, used for grid headers and value rendering. */
   const visibleViewColumns = computed(() =>
     selectedView.value ? getVisibleViewColumns(selectedView.value) : [],
   );
+  /** `true` when at least one column in the selected view has the `"category"` role. */
+  const viewHasCategories = computed(() =>
+    selectedView.value?.columns.some((column) => column.role === "category") ?? false,
+  );
+
+  // Capability flags derived from the active database's permission set,
+  // used by the UI to declaratively gate CRUD and attachment actions.
   const canCreate = computed(() => selectedDatabaseInfo.value?.capabilities.includes("create") ?? false);
   const canUpdate = computed(() => selectedDatabaseInfo.value?.capabilities.includes("update") ?? false);
   const canDelete = computed(() => selectedDatabaseInfo.value?.capabilities.includes("delete") ?? false);
   const canBrowseHistory = computed(() => selectedDatabaseInfo.value?.capabilities.includes("history") ?? false);
   const canUseAttachments = computed(() => selectedDatabaseInfo.value?.capabilities.includes("attachments") ?? false);
   const canRead = computed(() => selectedDatabaseInfo.value?.capabilities.includes("read") ?? false);
+  /** Global busy flag: `true` during initial load or any in-flight action. */
   const isBusy = computed(() => Boolean(busyAction.value) || loading.value);
   const hasSearchIndex = computed(() => indexedFields.value.length > 0);
-  // The UI filters the already-fetched summary list locally by ID and optional full-text hits.
+
+  /**
+   * Filtered document list shown in the Databases tab.
+   *
+   * Applies two local-only filters on top of the already-fetched summary
+   * list: an ID substring match and, when a search query is active, an
+   * intersection with the FlexSearch hit set.
+   */
   const documents = computed(() => {
     const idFilter = documentIdFilter.value.trim().toLowerCase();
     const activeSearchResults = searchQuery.value.trim()
@@ -189,6 +263,7 @@ export function useMindooDBDemoApp() {
       : canUpdate.value && Boolean(selectedDocument.value),
   );
 
+  /** Set the success banner and clear any previous error. */
   function setSuccess(message: string | null) {
     successMessage.value = message;
     if (message) {
@@ -216,6 +291,7 @@ export function useMindooDBDemoApp() {
     });
   }
 
+  /** Clear all secondary database panels (detail, history, attachments) when switching documents. */
   function resetDatabasePanels() {
     selectedDocument.value = null;
     historyEntries.value = [];
@@ -225,6 +301,7 @@ export function useMindooDBDemoApp() {
     attachmentMessage.value = null;
   }
 
+  /** Switch the editor into "create" mode with an empty JSON template. */
   function startCreateDocument() {
     editorMode.value = "create";
     selectedDocumentId.value = null;
@@ -348,6 +425,7 @@ export function useMindooDBDemoApp() {
     }
   }
 
+  /** Re-fetch the attachment list for the currently selected document. */
   async function refreshAttachments() {
     attachments.value = [];
     attachmentMessage.value = null;
@@ -443,16 +521,16 @@ export function useMindooDBDemoApp() {
     }
   }
 
-  /** Tear down event subscriptions, dispose the active view handle, and disconnect the session. */
+  /** Tear down event subscriptions, dispose the active navigator, and disconnect the session. */
   async function disconnect() {
     stopThemeSync?.();
     stopThemeSync = null;
     stopViewportSync?.();
     stopViewportSync = null;
     const currentSession = session.value;
-    const currentView = currentViewHandle.value;
+    const currentView = currentViewNavigator.value;
     session.value = null;
-    currentViewHandle.value = null;
+    currentViewNavigator.value = null;
     if (currentView) {
       try {
         await currentView.dispose();
@@ -558,6 +636,7 @@ export function useMindooDBDemoApp() {
     }
   }
 
+  /** Soft-delete the currently selected document and refresh the list and any active view. */
   async function deleteDocument() {
     if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value) {
       return;
@@ -582,6 +661,7 @@ export function useMindooDBDemoApp() {
     }
   }
 
+  /** Stream an attachment into a Blob, then trigger a browser download via a temporary object URL. */
   async function downloadAttachment(attachmentName: string) {
     if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value) {
       return;
@@ -604,6 +684,7 @@ export function useMindooDBDemoApp() {
     }
   }
 
+  /** Remove a named attachment from the selected document and refresh the attachment list. */
   async function removeAttachment(attachmentName: string) {
     if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value) {
       return;
@@ -716,20 +797,104 @@ export function useMindooDBDemoApp() {
     }
   }
 
+  /**
+   * Re-read a batch of entries from the current navigator position and
+   * synchronise all view-related reactive state (rows, expansion, cursor).
+   *
+   * Called after every navigation or expansion change so the UI stays in
+   * sync with the host-side navigator.
+   */
   async function refreshViewPage() {
-    if (!currentViewHandle.value) {
+    if (!currentViewNavigator.value) {
       viewRows.value = [];
       viewExpansionState.value = null;
+      currentViewEntry.value = null;
+      viewHasMore.value = false;
       return;
     }
-    const page = await currentViewHandle.value.page({ pageSize: 250 });
-    viewRows.value = page.rows;
-    viewExpansionState.value = await currentViewHandle.value.getExpansionState();
+    const page = await currentViewNavigator.value.entriesForward({ limit: 250 });
+    viewRows.value = page.entries;
+    viewExpansionState.value = await currentViewNavigator.value.getExpansionState();
+    currentViewEntry.value = await currentViewNavigator.value.getCurrentEntry();
+    viewHasMore.value = page.hasMore;
+  }
+
+  /**
+   * Generic wrapper for a single navigator cursor movement.
+   *
+   * Sets `busyAction` for the duration of the move, executes the provided
+   * `step` callback (which calls one `goto*` method on the navigator), then
+   * refreshes the view page so the UI reflects the new cursor position.
+   */
+  async function navigateView(
+    label: string,
+    step: (navigator: MindooDBAppViewNavigator) => Promise<boolean>,
+  ) {
+    if (!currentViewNavigator.value) {
+      return;
+    }
+    try {
+      busyAction.value = label;
+      await step(currentViewNavigator.value);
+      await refreshViewPage();
+    } finally {
+      busyAction.value = null;
+    }
+  }
+
+  /** Move the navigator cursor to an arbitrary entry by its position string (e.g. on row click). */
+  async function focusViewEntry(entry: MindooDBAppViewEntry) {
+    if (!currentViewNavigator.value || !entry.position) {
+      return;
+    }
+    try {
+      busyAction.value = "Focusing view entry";
+      await currentViewNavigator.value.gotoPos(entry.position);
+      await refreshViewPage();
+    } finally {
+      busyAction.value = null;
+    }
+  }
+
+  // ── Single-step navigation helpers ───────────────────────────────────
+  // Each wraps `navigateView` with the corresponding navigator method.
+
+  async function gotoFirstViewEntry() {
+    await navigateView("Navigating view", (navigator) => navigator.gotoFirst());
+  }
+
+  async function gotoLastViewEntry() {
+    await navigateView("Navigating view", (navigator) => navigator.gotoLast());
+  }
+
+  async function gotoNextViewEntry() {
+    await navigateView("Navigating view", (navigator) => navigator.gotoNext());
+  }
+
+  async function gotoPreviousViewEntry() {
+    await navigateView("Navigating view", (navigator) => navigator.gotoPrev());
+  }
+
+  async function gotoParentViewEntry() {
+    await navigateView("Navigating view", (navigator) => navigator.gotoParent());
+  }
+
+  async function gotoFirstChildViewEntry() {
+    await navigateView("Navigating view", (navigator) => navigator.gotoFirstChild());
+  }
+
+  /** Convenience: focus the first category row currently visible in the batch. */
+  async function focusFirstVisibleViewCategory() {
+    const category = viewRows.value.find((entry) => entry.kind === "category");
+    if (!category) {
+      return;
+    }
+    await focusViewEntry(category);
   }
 
   /**
    * Open the currently selected Haven-configured view via the SDK bridge,
-   * dispose any previously open handle, and load the first page of results.
+   * dispose any previously open navigator, and load the first batch of results.
    */
   async function loadSelectedView() {
     viewRows.value = [];
@@ -746,11 +911,12 @@ export function useMindooDBDemoApp() {
 
     try {
       busyAction.value = "Loading view";
-      await currentViewHandle.value?.dispose();
-      currentViewHandle.value = await sourceSession.openView(view.id);
+      await currentViewNavigator.value?.dispose();
+      currentViewNavigator.value = await sourceSession.openViewNavigator(view.id);
+      await currentViewNavigator.value.gotoFirst();
       await refreshViewPage();
       if (view.sources.length > 1) {
-        viewMessage.value = "Multi-source Haven views depend on the current host implementation.";
+        viewMessage.value = "This navigator is reading a multi-source Haven view.";
       }
     } catch (viewError) {
       viewMessage.value = readErrorMessage(viewError, "The selected view could not be loaded.");
@@ -759,37 +925,73 @@ export function useMindooDBDemoApp() {
     }
   }
 
+  /** Change the active view selection and immediately load it (fire-and-forget). */
   function setSelectedView(viewId: string | null) {
     selectedViewId.value = viewId;
     void loadSelectedView();
   }
 
-  async function toggleCategory(row: MindooDBAppViewRow) {
-    if (row.type !== "category" || !currentViewHandle.value) {
+  // ── Category expansion helpers ──────────────────────────────────────
+
+  /** Toggle the expanded / collapsed state of a category row. */
+  async function toggleCategory(row: MindooDBAppViewEntry) {
+    if (row.kind !== "category" || !row.docId || !currentViewNavigator.value) {
       return;
     }
-    viewExpansionState.value = row.expanded
-      ? await currentViewHandle.value.collapse(row.key)
-      : await currentViewHandle.value.expand(row.key);
+    if (row.expanded) {
+      await currentViewNavigator.value.collapse(row.origin, row.docId);
+    } else {
+      await currentViewNavigator.value.expand(row.origin, row.docId);
+    }
+    viewExpansionState.value = await currentViewNavigator.value.getExpansionState();
     await refreshViewPage();
   }
 
+  /** Expand the category entry the navigator cursor is currently pointing at. */
+  async function expandCurrentViewEntry() {
+    const entry = currentViewEntry.value;
+    if (!entry || entry.kind !== "category" || !entry.docId || !currentViewNavigator.value) {
+      return;
+    }
+    await currentViewNavigator.value.expand(entry.origin, entry.docId);
+    viewExpansionState.value = await currentViewNavigator.value.getExpansionState();
+    await refreshViewPage();
+  }
+
+  /** Collapse the category entry the navigator cursor is currently pointing at. */
+  async function collapseCurrentViewEntry() {
+    const entry = currentViewEntry.value;
+    if (!entry || entry.kind !== "category" || !entry.docId || !currentViewNavigator.value) {
+      return;
+    }
+    await currentViewNavigator.value.collapse(entry.origin, entry.docId);
+    viewExpansionState.value = await currentViewNavigator.value.getExpansionState();
+    await refreshViewPage();
+  }
+
+  /** Expand every category in the view at once. */
   async function expandAllViewCategories() {
-    if (!currentViewHandle.value) {
+    if (!currentViewNavigator.value) {
       return;
     }
-    viewExpansionState.value = await currentViewHandle.value.expandAll();
+    await currentViewNavigator.value.expandAll();
+    viewExpansionState.value = await currentViewNavigator.value.getExpansionState();
     await refreshViewPage();
   }
 
+  /** Collapse every category in the view at once. */
   async function collapseAllViewCategories() {
-    if (!currentViewHandle.value) {
+    if (!currentViewNavigator.value) {
       return;
     }
-    viewExpansionState.value = await currentViewHandle.value.collapseAll();
+    await currentViewNavigator.value.collapseAll();
+    viewExpansionState.value = await currentViewNavigator.value.getExpansionState();
     await refreshViewPage();
   }
 
+  // ── Full-text search actions ────────────────────────────────────────
+
+  /** Build a new FlexSearch index from scratch over the selected fields. */
   async function createSearchIndex(fields: string[]) {
     if (!selectedDatabase.value) {
       return;
@@ -846,6 +1048,10 @@ export function useMindooDBDemoApp() {
     void disconnect();
   });
 
+  // ── Public surface ─────────────────────────────────────────────────
+  // Every ref and action the UI tabs may bind to.  Grouped by concern:
+  // session / global, databases / documents, search, views, capability
+  // flags, and actions.
   return {
     loading,
     isBusy,
@@ -884,9 +1090,12 @@ export function useMindooDBDemoApp() {
     selectedViewId,
     selectedView,
     visibleViewColumns,
+    viewHasCategories,
     viewRows,
     viewMessage,
     viewExpansionState,
+    currentViewEntry,
+    viewHasMore,
     canCreate,
     canUpdate,
     canDelete,
@@ -914,7 +1123,17 @@ export function useMindooDBDemoApp() {
     removeAttachment,
     setSelectedView,
     loadSelectedView,
+    focusViewEntry,
+    focusFirstVisibleViewCategory,
+    gotoFirstViewEntry,
+    gotoLastViewEntry,
+    gotoNextViewEntry,
+    gotoPreviousViewEntry,
+    gotoParentViewEntry,
+    gotoFirstChildViewEntry,
     toggleCategory,
+    expandCurrentViewEntry,
+    collapseCurrentViewEntry,
     expandAllViewCategories,
     collapseAllViewCategories,
   };

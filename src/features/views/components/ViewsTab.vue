@@ -13,6 +13,18 @@ const outlineColumnId = computed(() =>
   ?? props.app.visibleViewColumns[0]?.id
   ?? null,
 );
+const currentEntryValues = computed(() => props.app.currentViewEntry?.columnValues ?? {});
+const currentEntryLabel = computed(() => {
+  const entry = props.app.currentViewEntry;
+  if (!entry) {
+    return null;
+  }
+  if (entry.kind === "category") {
+    return entry.categoryPath[entry.categoryPath.length - 1] || "Category";
+  }
+  const firstColumn = props.app.visibleViewColumns[0];
+  return firstColumn ? formatValue(entry.columnValues[firstColumn.name]) : entry.docId || "Document";
+});
 
 function handleViewChange(event: Event) {
   const viewId = (event.target as HTMLSelectElement).value;
@@ -48,8 +60,6 @@ function formatValue(value: unknown) {
 
       <div class="panel__actions">
         <Button label="Refresh" severity="secondary" text :disabled="app.isBusy" @click="app.loadSelectedView" />
-        <Button label="Expand all" severity="secondary" :disabled="!app.viewRows.length" @click="app.expandAllViewCategories" />
-        <Button label="Collapse all" severity="secondary" :disabled="!app.viewRows.length" @click="app.collapseAllViewCategories" />
       </div>
     </div>
 
@@ -81,6 +91,10 @@ function formatValue(value: unknown) {
             <span>Sources</span>
             <strong>{{ app.selectedView.sources.length }}</strong>
           </article>
+          <article class="metadata-card">
+            <span>Categories</span>
+            <strong>{{ app.viewHasCategories ? "Yes" : "No" }}</strong>
+          </article>
         </div>
 
         <div class="source-list">
@@ -96,14 +110,107 @@ function formatValue(value: unknown) {
         <div class="panel__header">
           <div>
             <p class="panel__eyebrow">Results</p>
-            <h3>Categorized rows</h3>
+            <h3>Navigator rows</h3>
           </div>
-          <Tag :value="`${app.viewRows.length} visible rows`" severity="secondary" rounded />
+          <div class="panel__actions">
+            <Tag :value="`${app.viewRows.length} visible rows`" severity="secondary" rounded />
+            <Tag
+              v-if="app.currentViewEntry"
+              :value="`Cursor: ${app.currentViewEntry.kind}`"
+              severity="contrast"
+              rounded
+            />
+          </div>
         </div>
 
         <Message v-if="app.viewMessage" severity="secondary" :closable="false">
           {{ app.viewMessage }}
         </Message>
+
+        <div class="navigator-toolbar">
+          <Button label="First" severity="secondary" text :disabled="app.isBusy || !app.selectedView" @click="app.gotoFirstViewEntry" />
+          <Button label="Prev" severity="secondary" text :disabled="app.isBusy || !app.selectedView" @click="app.gotoPreviousViewEntry" />
+          <Button label="Next" severity="secondary" text :disabled="app.isBusy || !app.selectedView" @click="app.gotoNextViewEntry" />
+          <Button label="Last" severity="secondary" text :disabled="app.isBusy || !app.selectedView" @click="app.gotoLastViewEntry" />
+          <Button label="Parent" severity="secondary" text :disabled="app.isBusy || !app.currentViewEntry" @click="app.gotoParentViewEntry" />
+          <Button label="First child" severity="secondary" text :disabled="app.isBusy || !app.currentViewEntry" @click="app.gotoFirstChildViewEntry" />
+          <Button
+            v-if="app.viewHasCategories"
+            label="Focus first category"
+            severity="secondary"
+            text
+            :disabled="app.isBusy || !app.viewRows.length"
+            @click="app.focusFirstVisibleViewCategory"
+          />
+          <Button
+            v-if="app.viewHasCategories"
+            label="Expand"
+            severity="secondary"
+            text
+            :disabled="app.isBusy || !app.currentViewEntry || app.currentViewEntry.kind !== 'category' || app.currentViewEntry.expanded"
+            @click="app.expandCurrentViewEntry"
+          />
+          <Button
+            v-if="app.viewHasCategories"
+            label="Collapse"
+            severity="secondary"
+            text
+            :disabled="app.isBusy || !app.currentViewEntry || app.currentViewEntry.kind !== 'category' || !app.currentViewEntry.expanded"
+            @click="app.collapseCurrentViewEntry"
+          />
+          <Button
+            v-if="app.viewHasCategories"
+            label="Expand all"
+            severity="secondary"
+            :disabled="!app.viewRows.length"
+            @click="app.expandAllViewCategories"
+          />
+          <Button
+            v-if="app.viewHasCategories"
+            label="Collapse all"
+            severity="secondary"
+            :disabled="!app.viewRows.length"
+            @click="app.collapseAllViewCategories"
+          />
+        </div>
+
+        <article v-if="app.currentViewEntry" class="current-entry-card">
+          <div class="current-entry-card__header">
+            <div>
+              <p class="panel__eyebrow">Current entry</p>
+              <h4>{{ currentEntryLabel }}</h4>
+            </div>
+            <Tag :value="app.currentViewEntry.position || 'No position'" severity="secondary" rounded />
+          </div>
+          <div class="metadata-grid metadata-grid--entry">
+            <article class="metadata-card">
+              <span>Kind</span>
+              <strong>{{ app.currentViewEntry.kind }}</strong>
+            </article>
+            <article class="metadata-card">
+              <span>Level</span>
+              <strong>{{ app.currentViewEntry.level }}</strong>
+            </article>
+            <article class="metadata-card">
+              <span>Doc ID</span>
+              <strong>{{ app.currentViewEntry.docId || "—" }}</strong>
+            </article>
+            <article class="metadata-card">
+              <span>Children</span>
+              <strong>{{ app.currentViewEntry.childCategoryCount + app.currentViewEntry.childDocumentCount }}</strong>
+            </article>
+          </div>
+          <div v-if="app.visibleViewColumns.length" class="current-entry-values">
+            <div
+              v-for="column in app.visibleViewColumns"
+              :key="`current-${column.id}`"
+              class="current-entry-values__item"
+            >
+              <span>{{ column.title || column.name }}</span>
+              <strong>{{ formatValue(currentEntryValues[column.name]) }}</strong>
+            </div>
+          </div>
+        </article>
 
         <div v-if="app.visibleViewColumns.length" class="view-grid view-grid--header">
           <span v-for="column in app.visibleViewColumns" :key="column.id">{{ column.title || column.name }}</span>
@@ -114,16 +221,20 @@ function formatValue(value: unknown) {
             v-for="row in app.viewRows"
             :key="row.key"
             class="view-grid"
-            :class="row.type === 'category' ? 'view-grid--category' : 'view-grid--document'"
+            :class="[
+              row.kind === 'category' ? 'view-grid--category' : 'view-grid--document',
+              app.currentViewEntry?.key === row.key ? 'view-grid--current' : '',
+            ]"
+            @click="app.focusViewEntry(row)"
           >
             <span v-for="column in app.visibleViewColumns" :key="`${row.key}-${column.id}`">
               <template v-if="column.id === outlineColumnId">
                 <div class="outline-entry" :style="{ paddingLeft: `${row.level * 1.1}rem` }">
                   <button
-                    v-if="row.type === 'category'"
+                    v-if="row.kind === 'category'"
                     type="button"
                     class="category-toggle"
-                    @click="app.toggleCategory(row)"
+                    @click.stop="app.toggleCategory(row)"
                   >
                     <span class="category-toggle__sign">{{ row.expanded ? '-' : '+' }}</span>
                     <strong>{{ row.categoryPath[row.categoryPath.length - 1] || 'Category' }}</strong>
@@ -131,17 +242,22 @@ function formatValue(value: unknown) {
                   </button>
                   <template v-else>
                     <span class="category-toggle__sign category-toggle__sign--placeholder" aria-hidden="true"></span>
-                    <span>{{ formatValue(row.values[column.name]) }}</span>
+                    <span>{{ formatValue(row.columnValues[column.name]) }}</span>
                   </template>
                 </div>
               </template>
               <template v-else>
-                {{ formatValue(row.values[column.name]) }}
+                {{ formatValue(row.columnValues[column.name]) }}
               </template>
             </span>
           </div>
         </div>
-        <p v-else class="panel__empty">No view rows are visible for the selected definition.</p>
+        <p v-if="app.viewRows.length && app.viewHasMore" class="panel__empty">
+          Only the first 250 visible rows are shown in the batch preview.
+        </p>
+        <p v-else-if="!app.viewRows.length" class="panel__empty">
+          No view rows are visible for the selected definition.
+        </p>
       </section>
     </div>
   </section>
@@ -153,7 +269,9 @@ function formatValue(value: unknown) {
 .panel,
 .metadata-grid,
 .source-list,
-.view-grid-stack {
+.view-grid-stack,
+.navigator-toolbar,
+.current-entry-values {
   display: grid;
   gap: 1rem;
 }
@@ -195,6 +313,10 @@ function formatValue(value: unknown) {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.metadata-grid--entry {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .metadata-card,
 .source-item {
   padding: 0.9rem;
@@ -212,6 +334,44 @@ function formatValue(value: unknown) {
   overflow: auto;
 }
 
+.navigator-toolbar {
+  grid-template-columns: repeat(auto-fit, minmax(8rem, max-content));
+  align-items: center;
+}
+
+.current-entry-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.current-entry-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.current-entry-card__header h4 {
+  margin: 0.25rem 0 0;
+}
+
+.current-entry-values {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.current-entry-values__item {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+}
+
 .view-grid {
   display: grid;
   grid-template-columns: minmax(12rem, 1.2fr) repeat(auto-fit, minmax(10rem, 1fr));
@@ -221,6 +381,7 @@ function formatValue(value: unknown) {
   border-radius: var(--radius-sm);
   background: var(--bg-soft);
   align-items: center;
+  cursor: pointer;
 }
 
 .view-grid--header {
@@ -232,6 +393,11 @@ function formatValue(value: unknown) {
 
 .view-grid--category {
   background: rgba(255, 255, 255, 0.06);
+}
+
+.view-grid--current {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary-color) 35%, transparent);
 }
 
 .category-toggle {
@@ -271,6 +437,10 @@ function formatValue(value: unknown) {
 @media (max-width: 980px) {
   .view-layout {
     grid-template-columns: 1fr;
+  }
+
+  .metadata-grid--entry {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>
