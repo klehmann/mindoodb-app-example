@@ -2,6 +2,7 @@
 import Button from "primevue/button";
 import Message from "primevue/message";
 import Tag from "primevue/tag";
+import { ref } from "vue";
 import { abbreviateCanonicalName } from "mindoodb-app-sdk";
 
 import JsonCodeEditor from "@/shared/components/JsonCodeEditor.vue";
@@ -9,6 +10,63 @@ import JsonCodeEditor from "@/shared/components/JsonCodeEditor.vue";
 const props = defineProps<{
   app: any;
 }>();
+
+const attachmentDragActive = ref(false);
+const attachmentDragDepth = ref(0);
+
+function canAcceptAttachmentDrop(): boolean {
+  return Boolean(
+    props.app.selectedDocument
+      && props.app.canUseAttachments
+      && !props.app.isBusy,
+  );
+}
+
+function dataTransferHasFiles(event: DragEvent): boolean {
+  const types = event.dataTransfer?.types;
+  if (!types) return false;
+  for (let index = 0; index < types.length; index += 1) {
+    if (types[index] === "Files") return true;
+  }
+  return false;
+}
+
+function handleAttachmentDragEnter(event: DragEvent) {
+  if (!dataTransferHasFiles(event)) return;
+  if (!canAcceptAttachmentDrop()) return;
+  event.preventDefault();
+  attachmentDragDepth.value += 1;
+  attachmentDragActive.value = true;
+}
+
+function handleAttachmentDragOver(event: DragEvent) {
+  if (!dataTransferHasFiles(event)) return;
+  if (!canAcceptAttachmentDrop()) {
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "none";
+    return;
+  }
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+}
+
+function handleAttachmentDragLeave(event: DragEvent) {
+  if (!dataTransferHasFiles(event)) return;
+  attachmentDragDepth.value = Math.max(0, attachmentDragDepth.value - 1);
+  if (attachmentDragDepth.value === 0) {
+    attachmentDragActive.value = false;
+  }
+}
+
+function handleAttachmentDrop(event: DragEvent) {
+  attachmentDragDepth.value = 0;
+  attachmentDragActive.value = false;
+  if (!dataTransferHasFiles(event)) return;
+  if (!canAcceptAttachmentDrop()) return;
+  event.preventDefault();
+  const files = event.dataTransfer?.files;
+  if (!files || files.length === 0) return;
+  void props.app.uploadAttachments(files);
+}
 
 function formatJson(value: unknown) {
   return JSON.stringify(value, null, 2);
@@ -289,7 +347,14 @@ function handleSearchInput(event: Event) {
           <p v-else class="panel__empty">Load history to inspect the available revisions for the selected document.</p>
         </section>
 
-        <section class="glass-card panel">
+        <section
+          class="glass-card panel attachments-panel"
+          :class="{ 'attachments-panel--drag-active': attachmentDragActive }"
+          @dragenter="handleAttachmentDragEnter"
+          @dragover="handleAttachmentDragOver"
+          @dragleave="handleAttachmentDragLeave"
+          @drop="handleAttachmentDrop"
+        >
           <div class="panel__header">
             <div>
               <p class="panel__eyebrow">Attachments</p>
@@ -306,6 +371,13 @@ function handleSearchInput(event: Event) {
               <span>Upload</span>
             </label>
           </div>
+
+          <p
+            v-if="app.selectedDocument && app.canUseAttachments && !app.isBusy"
+            class="attachments-panel__hint"
+          >
+            Drop files here from Files or Photos to attach them.
+          </p>
 
           <Message v-if="app.attachmentMessage" severity="secondary" :closable="false">
             {{ app.attachmentMessage }}
@@ -482,6 +554,33 @@ function handleSearchInput(event: Event) {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   cursor: pointer;
+}
+
+.attachments-panel {
+  border: 2px dashed transparent;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.attachments-panel--drag-active {
+  border-color: var(--p-primary-color, #d4a017);
+  background-color: color-mix(in srgb, var(--p-primary-color, #d4a017) 10%, transparent);
+}
+
+.attachments-panel--drag-active * {
+  pointer-events: none;
+}
+
+.attachments-panel__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted, rgba(255, 255, 255, 0.6));
+}
+
+@media (pointer: coarse) {
+  .attachment-item .panel__actions .p-button {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
 }
 
 .native-input {
