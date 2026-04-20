@@ -198,6 +198,7 @@ describe("useMindooDBDemoApp", () => {
       },
     ];
     let currentIndex = -1;
+    let viewCursor = "view-cursor-1";
     const navigator = {
       async getDefinition() {
         return {
@@ -205,7 +206,12 @@ describe("useMindooDBDemoApp", () => {
           columns: [],
         };
       },
-      async refresh() {},
+      async getViewCursor() {
+        return viewCursor;
+      },
+      async refresh() {
+        return viewCursor;
+      },
       async getCurrentEntry() {
         return entries[currentIndex] ?? null;
       },
