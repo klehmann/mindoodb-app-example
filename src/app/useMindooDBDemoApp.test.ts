@@ -52,6 +52,9 @@ describe("useMindooDBDemoApp", () => {
           width: 900,
           height: 600,
         },
+        uiPreferences: {
+          iosMultitaskingOptimized: false,
+        },
       },
       databases: [{
         info: {
@@ -108,6 +111,7 @@ describe("useMindooDBDemoApp", () => {
     expect(app.editorMode.value).toBe("edit");
     expect(app.editorJson.value).toContain("\"title\": \"Hello\"");
     expect(app.eventLog.value.map((entry) => entry.kind)).toEqual([
+      "launch-ui-preferences",
       "launch-viewport",
       "launch-theme",
     ]);
@@ -120,14 +124,22 @@ describe("useMindooDBDemoApp", () => {
       width: 640,
       height: 480,
     });
+    bridgeController.emitUiPreferencesChange({
+      iosMultitaskingOptimized: true,
+    });
 
     expect(app.hostTheme.value.mode).toBe("light");
     expect(app.hostViewport.value).toEqual({
       width: 640,
       height: 480,
     });
-    expect(app.eventLog.value[0]?.kind).toBe("viewport-changed");
+    expect(app.hostUiPreferences.value).toEqual({
+      iosMultitaskingOptimized: true,
+    });
+    expect(app.eventLog.value[0]?.kind).toBe("ui-preferences-changed");
+    expect(app.eventLog.value[1]?.kind).toBe("viewport-changed");
     expect(app.eventLog.value.some((entry) => entry.kind === "theme-changed")).toBe(true);
+    expect(app.eventLog.value.some((entry) => entry.kind === "ui-preferences-changed")).toBe(true);
 
     scope.stop();
   });

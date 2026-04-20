@@ -24,6 +24,11 @@ function formatTimestamp(value: string) {
         <small>Reported by the Haven host</small>
       </article>
       <article class="glass-card summary-card">
+        <span>UI preferences</span>
+        <strong>{{ app.hostUiPreferences.iosMultitaskingOptimized ? "Shift nav right" : "Default mobile nav" }}</strong>
+        <small>Host-controlled app shell behavior</small>
+      </article>
+      <article class="glass-card summary-card">
         <span>Event count</span>
         <strong>{{ app.eventLog.length }}</strong>
         <small>Initial snapshots plus live updates</small>
@@ -34,7 +39,7 @@ function formatTimestamp(value: string) {
       <div class="panel__header">
         <div>
           <p class="panel__eyebrow">Incoming events</p>
-          <h3>Theme and resize activity</h3>
+          <h3>Theme, resize, and UI preference activity</h3>
         </div>
       </div>
 
@@ -64,7 +69,7 @@ function formatTimestamp(value: string) {
 }
 
 .summary-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .summary-card {
@@ -110,6 +115,12 @@ pre {
 }
 
 @media (max-width: 820px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
   .summary-grid {
     grid-template-columns: 1fr;
   }

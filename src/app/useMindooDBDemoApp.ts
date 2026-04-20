@@ -250,6 +250,7 @@ export function useMindooDBDemoApp() {
     // Events section
     hostTheme: events.hostTheme,
     hostViewport: events.hostViewport,
+    hostUiPreferences: events.hostUiPreferences,
     eventLog: events.eventLog,
 
     // Documents section

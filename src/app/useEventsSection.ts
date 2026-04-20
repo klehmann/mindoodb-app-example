@@ -17,6 +17,7 @@ import {
   type MindooDBAppHostTheme,
   type MindooDBAppLaunchContext,
   type MindooDBAppSession,
+  type MindooDBAppUiPreferences,
   type MindooDBAppViewport,
 } from "mindoodb-app-sdk";
 
@@ -28,7 +29,7 @@ import { applyAppTheme, normalizeAppTheme } from "@/lib/theme";
  */
 export type DemoEventEntry = {
   id: string;
-  kind: "launch-theme" | "launch-viewport" | "theme-changed" | "viewport-changed";
+  kind: "launch-theme" | "launch-viewport" | "launch-ui-preferences" | "theme-changed" | "viewport-changed" | "ui-preferences-changed";
   createdAt: string;
   label: string;
   payload: string;
@@ -52,11 +53,15 @@ function addEventEntry(target: DemoEventEntry[], entry: Omit<DemoEventEntry, "id
 export function useEventsSection() {
   const hostTheme = ref(normalizeAppTheme());
   const hostViewport = ref<MindooDBAppViewport | null>(null);
+  const hostUiPreferences = ref<MindooDBAppUiPreferences>({
+    iosMultitaskingOptimized: false,
+  });
   const eventLog = ref<DemoEventEntry[]>([]);
 
   // ── Host event teardown handles ────────────────────────────────────
   let stopThemeSync: (() => void) | null = null;
   let stopViewportSync: (() => void) | null = null;
+  let stopUiPreferencesSync: (() => void) | null = null;
 
   /** Apply a theme from Haven to the PrimeVue runtime and record it in the event log. */
   function applyHostTheme(theme?: MindooDBAppHostTheme | null, kind: DemoEventEntry["kind"] = "theme-changed") {
@@ -78,6 +83,19 @@ export function useEventsSection() {
     });
   }
 
+  /** Store host-controlled UI preferences and record the snapshot or live update. */
+  function setUiPreferences(
+    uiPreferences: MindooDBAppUiPreferences,
+    kind: DemoEventEntry["kind"] = "ui-preferences-changed",
+  ) {
+    hostUiPreferences.value = { ...uiPreferences };
+    addEventEntry(eventLog.value, {
+      kind,
+      label: kind === "launch-ui-preferences" ? "Initial UI preferences" : "UI preferences changed",
+      payload: stringifyJson(uiPreferences),
+    });
+  }
+
   /**
    * Record the initial theme/viewport from the launch context and subscribe
    * to live push-events from the session.
@@ -86,13 +104,18 @@ export function useEventsSection() {
     eventLog.value = [];
     applyHostTheme(context.theme, "launch-theme");
     setViewport(context.viewport, "launch-viewport");
+    setUiPreferences(context.uiPreferences, "launch-ui-preferences");
     stopThemeSync?.();
     stopViewportSync?.();
+    stopUiPreferencesSync?.();
     stopThemeSync = session.onThemeChange((theme) => {
       applyHostTheme(theme, "theme-changed");
     });
     stopViewportSync = session.onViewportChange((viewport) => {
       setViewport(viewport, "viewport-changed");
+    });
+    stopUiPreferencesSync = session.onUiPreferencesChange((uiPreferences) => {
+      setUiPreferences(uiPreferences, "ui-preferences-changed");
     });
   }
 
@@ -102,17 +125,23 @@ export function useEventsSection() {
     stopThemeSync = null;
     stopViewportSync?.();
     stopViewportSync = null;
+    stopUiPreferencesSync?.();
+    stopUiPreferencesSync = null;
   }
 
   /** Reset theme to defaults on connection failure. */
   function resetTheme() {
     applyAppTheme(null);
     hostViewport.value = null;
+    hostUiPreferences.value = {
+      iosMultitaskingOptimized: false,
+    };
   }
 
   return {
     hostTheme,
     hostViewport,
+    hostUiPreferences,
     eventLog,
     subscribeToHostEvents,
     teardownSubscriptions,
