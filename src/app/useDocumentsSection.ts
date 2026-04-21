@@ -55,6 +55,20 @@ function stringifyJson(value: unknown) {
   return JSON.stringify(value ?? {}, null, 2);
 }
 
+function buildTopLevelDocumentPatch(
+  current: Record<string, unknown>,
+  next: Record<string, unknown>,
+) {
+  const set: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(next)) {
+    if (!Object.is(current[key], value)) {
+      set[key] = value;
+    }
+  }
+  const unset = Object.keys(current).filter((key) => !(key in next));
+  return { set, unset };
+}
+
 /** Extract the `.message` from an Error, or return the provided fallback string. */
 function readErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -392,7 +406,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
           throw new Error("The selected database does not allow document creation.");
         }
         const created = await selectedDatabase.value.documents.create({
-          data,
+          set: data,
           decryptionKeyId: launchContext.value?.launchParameters.decryptionKeyId?.trim() || "default",
         });
         await refreshDocuments(created.id);
@@ -407,7 +421,8 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
         if (!selectedDocument.value) {
           throw new Error("The selected document is deleted or unavailable.");
         }
-        const updated = await selectedDatabase.value.documents.update(selectedDocumentId.value, { data });
+        const patch = buildTopLevelDocumentPatch(selectedDocument.value.data, data);
+        const updated = await selectedDatabase.value.documents.update(selectedDocumentId.value, patch);
         await refreshDocuments(updated.id);
         setSuccess(`Updated document ${updated.id}.`);
       }
