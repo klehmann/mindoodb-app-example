@@ -85,14 +85,18 @@ export function useMindooDBDemoApp() {
   const selectedDatabaseInfo = computed(() =>
     databases.value.find((database) => database.id === selectedDatabaseId.value) ?? null,
   );
+  const isTimeTravelActive = computed(() => launchContext.value?.timeTravelDate != null);
+  const timeTravelDateLabel = computed(() =>
+    launchContext.value?.timeTravelDate == null ? "" : new Date(launchContext.value.timeTravelDate).toLocaleString(),
+  );
 
   // Capability flags derived from the active database's permission set,
   // used by the UI to declaratively gate CRUD and attachment actions.
-  const canCreate = computed(() => selectedDatabaseInfo.value?.capabilities.includes("create") ?? false);
-  const canUpdate = computed(() => selectedDatabaseInfo.value?.capabilities.includes("update") ?? false);
-  const canDelete = computed(() => selectedDatabaseInfo.value?.capabilities.includes("delete") ?? false);
+  const canCreate = computed(() => !isTimeTravelActive.value && (selectedDatabaseInfo.value?.capabilities.includes("create") ?? false));
+  const canUpdate = computed(() => !isTimeTravelActive.value && (selectedDatabaseInfo.value?.capabilities.includes("update") ?? false));
+  const canDelete = computed(() => !isTimeTravelActive.value && (selectedDatabaseInfo.value?.capabilities.includes("delete") ?? false));
   const canBrowseHistory = computed(() => selectedDatabaseInfo.value?.capabilities.includes("history") ?? false);
-  const canUseAttachments = computed(() => selectedDatabaseInfo.value?.capabilities.includes("attachments") ?? false);
+  const canUseAttachments = computed(() => !isTimeTravelActive.value && (selectedDatabaseInfo.value?.capabilities.includes("attachments") ?? false));
   const canRead = computed(() => selectedDatabaseInfo.value?.capabilities.includes("read") ?? false);
   /** Global busy flag: `true` during initial load or any in-flight action. */
   const isBusy = computed(() => Boolean(busyAction.value) || loading.value);
@@ -233,6 +237,8 @@ export function useMindooDBDemoApp() {
     error,
     successMessage,
     launchContext,
+    isTimeTravelActive,
+    timeTravelDateLabel,
     databases,
     selectedDatabaseId,
     selectedDatabaseInfo,

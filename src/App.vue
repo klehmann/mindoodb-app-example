@@ -46,6 +46,7 @@ onMounted(() => {
         <Tag :value="`${viewportLabel} viewport`" severity="secondary" rounded />
         <Tag v-if="app.launchContext" :value="`${app.launchContext.databases.length} mapped databases`" severity="help" rounded />
         <Tag v-if="app.launchContext" :value="`${app.launchContext.views.length} mapped views`" severity="info" rounded />
+        <Tag v-if="app.isTimeTravelActive" :value="`Time travel: ${app.timeTravelDateLabel}`" severity="warn" rounded />
       </div>
 
       <div class="hero__actions">
@@ -62,6 +63,9 @@ onMounted(() => {
     </Message>
     <Message v-else-if="app.successMessage" severity="success" :closable="false">
       {{ app.successMessage }}
+    </Message>
+    <Message v-if="app.isTimeTravelActive" severity="info" :closable="false">
+      Time travel mode is active. This app is read-only as of {{ app.timeTravelDateLabel }}.
     </Message>
 
     <section class="tab-shell glass-card">
