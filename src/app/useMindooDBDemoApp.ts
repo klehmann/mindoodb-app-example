@@ -295,6 +295,7 @@ export function useMindooDBDemoApp() {
     loadHistory: documents.loadHistory,
     refreshAttachments: documents.refreshAttachments,
     uploadAttachments: documents.uploadAttachments,
+    scanAttachment: documents.scanAttachment,
     previewAttachment: documents.previewAttachment,
     downloadAttachment: documents.downloadAttachment,
     removeAttachment: documents.removeAttachment,

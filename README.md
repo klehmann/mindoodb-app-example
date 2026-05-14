@@ -52,8 +52,8 @@ The fastest way to explore the MindooDB platform is to run this app locally and 
 ```bash
 git clone https://github.com/klehmann/mindoodb-app-example.git
 cd mindoodb-app-example
-npm install
-npm run dev:local
+pnpm install
+pnpm dev:local
 ```
 
 This starts a Vite dev server on **http://localhost:4200** with hot module reload. The `dev:local` script sets `LOCAL_MINDOODB=1`, which configures Vite to resolve `mindoodb-app-sdk` and `mindoodb-view-language` from sibling directories -- useful when you are working on the SDK itself.
@@ -72,14 +72,14 @@ To build your own app, **fork or duplicate** this project. You can develop live 
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Start Vite dev server (port 4200), using published SDK packages |
-| `npm run dev:local` | Start Vite dev server, resolving SDK from sibling repos |
-| `npm run build` | Type-check and build production bundle to `dist/` |
-| `npm run build:local` | Build with local SDK resolution |
-| `npm test` | Run tests with Vitest |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run deploy` | Build and deploy to Cloudflare Workers |
-| `npm run preview` | Build and preview with local Wrangler dev server |
+| `pnpm dev` | Start Vite dev server (port 4200), using published SDK packages |
+| `pnpm dev:local` | Start Vite dev server, resolving SDK from sibling repos |
+| `pnpm build` | Type-check and build production bundle to `dist/` |
+| `pnpm build:local` | Build with local SDK resolution |
+| `pnpm test` | Run tests with Vitest |
+| `pnpm test:watch` | Run tests in watch mode |
+| `pnpm deploy` | Build and deploy to Cloudflare Workers |
+| `pnpm preview` | Build and preview with local Wrangler dev server |
 
 ## Deployment to Cloudflare
 
@@ -101,7 +101,7 @@ The configuration lives in `wrangler.jsonc`:
 To deploy your own instance:
 
 ```bash
-npm run deploy
+pnpm deploy
 ```
 
 This runs `vue-tsc --noEmit && vite build` followed by `wrangler deploy`, which uploads the `dist/` folder as static assets with SPA fallback routing.
@@ -143,7 +143,7 @@ The test suite is intentionally focused on the non-trivial integration points:
 Run the tests:
 
 ```bash
-npm test
+pnpm test
 ```
 
 For guidance on testing your own MindooDB apps, see the [SDK testing documentation](https://github.com/klehmann/mindoodb-app-sdk/blob/main/TESTING.md).

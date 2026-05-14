@@ -78,8 +78,15 @@ function readErrorMessage(error: unknown, fallback: string) {
  * Reads an attachment via the SDK's pull-based stream and assembles it into
  * a single Blob suitable for browser download or preview.
  */
-async function readAttachmentBlob(database: MindooDBAppDatabase, docId: string, attachmentName: string) {
-  const stream = await database.attachments.openReadStream(docId, attachmentName);
+async function readAttachmentBlob(
+  database: MindooDBAppDatabase,
+  docId: string,
+  attachmentName: string,
+) {
+  const stream = await database.attachments.openReadStream(
+    docId,
+    attachmentName,
+  );
   const chunks: Uint8Array[] = [];
   try {
     while (true) {
@@ -138,7 +145,9 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
   const editorJson = ref("{\n}");
   const editorMode = ref<"create" | "edit">("create");
   const historyEntries = ref<MindooDBAppDocumentHistoryEntry[]>([]);
-  const selectedHistoricalDocument = ref<MindooDBAppHistoricalDocument | null>(null);
+  const selectedHistoricalDocument = ref<MindooDBAppHistoricalDocument | null>(
+    null,
+  );
   const historyMessage = ref<string | null>(null);
   const attachments = ref<MindooDBAppAttachmentInfo[]>([]);
   const attachmentMessage = ref<string | null>(null);
@@ -156,8 +165,11 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
 
   // ── Derived / computed state ───────────────────────────────────────
 
-  const selectedDocumentSummary = computed(() =>
-    documentListEntries.value.find((document) => document.id === selectedDocumentId.value) ?? null,
+  const selectedDocumentSummary = computed(
+    () =>
+      documentListEntries.value.find(
+        (document) => document.id === selectedDocumentId.value,
+      ) ?? null,
   );
   const hasSearchIndex = computed(() => indexedFields.value.length > 0);
 
@@ -248,11 +260,15 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     for (const entry of sampleEntries) {
       Object.keys(entry.data ?? {}).forEach((key) => keys.add(key));
     }
-    availableSearchFields.value = Array.from(keys).sort((left, right) => left.localeCompare(right));
+    availableSearchFields.value = Array.from(keys).sort((left, right) =>
+      left.localeCompare(right),
+    );
     if (!searchFieldSelection.value.length) {
       searchFieldSelection.value = [...availableSearchFields.value];
     } else {
-      searchFieldSelection.value = searchFieldSelection.value.filter((field) => keys.has(field));
+      searchFieldSelection.value = searchFieldSelection.value.filter((field) =>
+        keys.has(field),
+      );
     }
   }
 
@@ -294,11 +310,14 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     editorMode.value = "edit";
     if (summary.isDeleted) {
       editorJson.value = "{\n}";
-      historyMessage.value = "The selected document is deleted. Use the history browser to inspect earlier revisions.";
-      attachmentMessage.value = "Deleted documents do not expose current attachments.";
+      historyMessage.value =
+        "The selected document is deleted. Use the history browser to inspect earlier revisions.";
+      attachmentMessage.value =
+        "Deleted documents do not expose current attachments.";
       return;
     }
-    selectedDocument.value = await selectedDatabase.value?.documents.get(docId) ?? null;
+    selectedDocument.value =
+      (await selectedDatabase.value?.documents.get(docId)) ?? null;
     editorJson.value = stringifyJson(selectedDocument.value?.data ?? {});
     await refreshAttachments();
   }
@@ -311,15 +330,19 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       return;
     }
 
-    documentListEntries.value = await listAllDocumentEntries(documentListMode.value);
+    documentListEntries.value = await listAllDocumentEntries(
+      documentListMode.value,
+    );
     await refreshAvailableSearchFields();
     if (searchQuery.value.trim()) {
       searchResults.value = searchIndex.search(searchQuery.value);
     }
 
-    const nextDocId = preferredDocId && documentListEntries.value.some((item) => item.id === preferredDocId)
-      ? preferredDocId
-      : documents.value[0]?.id ?? documentListEntries.value[0]?.id ?? null;
+    const nextDocId =
+      preferredDocId &&
+      documentListEntries.value.some((item) => item.id === preferredDocId)
+        ? preferredDocId
+        : (documents.value[0]?.id ?? documentListEntries.value[0]?.id ?? null);
     if (nextDocId) {
       await selectDocument(nextDocId);
     } else {
@@ -331,15 +354,23 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
   async function refreshAttachments() {
     attachments.value = [];
     attachmentMessage.value = null;
-    if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value) {
+    if (
+      !selectedDatabase.value ||
+      !selectedDocumentId.value ||
+      !selectedDocument.value ||
+      !canUpdate.value
+    ) {
       return;
     }
     if (!canUseAttachments.value) {
-      attachmentMessage.value = "Attachment access is not allowed for the selected database.";
+      attachmentMessage.value =
+        "Attachment access is not allowed for the selected database.";
       return;
     }
 
-    attachments.value = await selectedDatabase.value.attachments.list(selectedDocumentId.value);
+    attachments.value = await selectedDatabase.value.attachments.list(
+      selectedDocumentId.value,
+    );
   }
 
   /**
@@ -354,13 +385,17 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     }
     if (!canBrowseHistory.value) {
       historyEntries.value = [];
-      historyMessage.value = "History browsing is not allowed for the selected database.";
+      historyMessage.value =
+        "History browsing is not allowed for the selected database.";
       return;
     }
 
-    historyEntries.value = await selectedDatabase.value.documents.listHistory(selectedDocumentId.value);
+    historyEntries.value = await selectedDatabase.value.documents.listHistory(
+      selectedDocumentId.value,
+    );
     if (!historyEntries.value.length) {
-      historyMessage.value = "No historical revisions were found for the selected document.";
+      historyMessage.value =
+        "No historical revisions were found for the selected document.";
       return;
     }
 
@@ -368,10 +403,11 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     if (nextTimestamp == null) {
       return;
     }
-    selectedHistoricalDocument.value = await selectedDatabase.value.documents.getAtTimestamp(
-      selectedDocumentId.value,
-      nextTimestamp,
-    );
+    selectedHistoricalDocument.value =
+      await selectedDatabase.value.documents.getAtTimestamp(
+        selectedDocumentId.value,
+        nextTimestamp,
+      );
   }
 
   /**
@@ -394,20 +430,28 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       }
       data = parsed as Record<string, unknown>;
     } catch (parseError) {
-      error.value = readErrorMessage(parseError, "The JSON document could not be parsed.");
+      error.value = readErrorMessage(
+        parseError,
+        "The JSON document could not be parsed.",
+      );
       return;
     }
 
-    busyAction.value = editorMode.value === "create" ? "Creating document" : "Updating document";
+    busyAction.value =
+      editorMode.value === "create" ? "Creating document" : "Updating document";
     error.value = null;
     try {
       if (editorMode.value === "create") {
         if (!canCreate.value) {
-          throw new Error("The selected database does not allow document creation.");
+          throw new Error(
+            "The selected database does not allow document creation.",
+          );
         }
         const created = await selectedDatabase.value.documents.create({
           set: data,
-          decryptionKeyId: launchContext.value?.launchParameters.decryptionKeyId?.trim() || "default",
+          decryptionKeyId:
+            launchContext.value?.launchParameters.decryptionKeyId?.trim() ||
+            "default",
         });
         await refreshDocuments(created.id);
         setSuccess(`Created document ${created.id}.`);
@@ -416,19 +460,30 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
           throw new Error("Select a document before updating it.");
         }
         if (!canUpdate.value) {
-          throw new Error("The selected database does not allow document updates.");
+          throw new Error(
+            "The selected database does not allow document updates.",
+          );
         }
         if (!selectedDocument.value) {
           throw new Error("The selected document is deleted or unavailable.");
         }
-        const patch = buildTopLevelDocumentPatch(selectedDocument.value.data, data);
-        const updated = await selectedDatabase.value.documents.update(selectedDocumentId.value, patch);
+        const patch = buildTopLevelDocumentPatch(
+          selectedDocument.value.data,
+          data,
+        );
+        const updated = await selectedDatabase.value.documents.update(
+          selectedDocumentId.value,
+          patch,
+        );
         await refreshDocuments(updated.id);
         setSuccess(`Updated document ${updated.id}.`);
       }
       await onDocumentMutation();
     } catch (saveError) {
-      error.value = readErrorMessage(saveError, "The document could not be saved.");
+      error.value = readErrorMessage(
+        saveError,
+        "The document could not be saved.",
+      );
     } finally {
       busyAction.value = null;
     }
@@ -436,14 +491,20 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
 
   /** Soft-delete the currently selected document and refresh the list and any active view. */
   async function deleteDocument() {
-    if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value) {
+    if (
+      !selectedDatabase.value ||
+      !selectedDocumentId.value ||
+      !selectedDocument.value
+    ) {
       return;
     }
     busyAction.value = "Deleting document";
     error.value = null;
     try {
       if (!canDelete.value) {
-        throw new Error("The selected database does not allow document deletion.");
+        throw new Error(
+          "The selected database does not allow document deletion.",
+        );
       }
       const docId = selectedDocumentId.value;
       await selectedDatabase.value.documents.delete(docId);
@@ -451,7 +512,10 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       setSuccess(`Deleted document ${docId}.`);
       await onDocumentMutation();
     } catch (deleteError) {
-      error.value = readErrorMessage(deleteError, "The document could not be deleted.");
+      error.value = readErrorMessage(
+        deleteError,
+        "The document could not be deleted.",
+      );
     } finally {
       busyAction.value = null;
     }
@@ -461,14 +525,22 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
 
   /** Stream an attachment into a Blob, then trigger a browser download via a temporary object URL. */
   async function downloadAttachment(attachmentName: string) {
-    if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value) {
+    if (
+      !selectedDatabase.value ||
+      !selectedDocumentId.value ||
+      !selectedDocument.value
+    ) {
       return;
     }
 
     busyAction.value = "Downloading attachment";
     error.value = null;
     try {
-      const blob = await readAttachmentBlob(selectedDatabase.value, selectedDocumentId.value, attachmentName);
+      const blob = await readAttachmentBlob(
+        selectedDatabase.value,
+        selectedDocumentId.value,
+        attachmentName,
+      );
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -476,7 +548,10 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       link.click();
       URL.revokeObjectURL(url);
     } catch (downloadError) {
-      error.value = readErrorMessage(downloadError, "The attachment could not be downloaded.");
+      error.value = readErrorMessage(
+        downloadError,
+        "The attachment could not be downloaded.",
+      );
     } finally {
       busyAction.value = null;
     }
@@ -484,18 +559,28 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
 
   /** Remove a named attachment from the selected document and refresh the attachment list. */
   async function removeAttachment(attachmentName: string) {
-    if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value) {
+    if (
+      !selectedDatabase.value ||
+      !selectedDocumentId.value ||
+      !selectedDocument.value
+    ) {
       return;
     }
 
     busyAction.value = "Removing attachment";
     error.value = null;
     try {
-      await selectedDatabase.value.attachments.remove(selectedDocumentId.value, attachmentName);
+      await selectedDatabase.value.attachments.remove(
+        selectedDocumentId.value,
+        attachmentName,
+      );
       await refreshAttachments();
       setSuccess(`Removed attachment ${attachmentName}.`);
     } catch (removeError) {
-      error.value = readErrorMessage(removeError, "The attachment could not be removed.");
+      error.value = readErrorMessage(
+        removeError,
+        "The attachment could not be removed.",
+      );
     } finally {
       busyAction.value = null;
     }
@@ -510,39 +595,62 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     busyAction.value = "Opening attachment preview";
     error.value = null;
     try {
-      if (launchContext.value?.runtime === "window" && typeof window !== "undefined") {
+      if (
+        launchContext.value?.runtime === "window" &&
+        typeof window !== "undefined"
+      ) {
         console.log("[attachment-preview]", "Opening window-mode preview.", {
           documentId: selectedDocumentId.value,
           attachmentName,
         });
         const previewTab = window.open("", "_blank");
         if (!previewTab) {
-          throw new Error("The preview tab could not be opened. Allow popups and try again.");
+          throw new Error(
+            "The preview tab could not be opened. Allow popups and try again.",
+          );
         }
         previewTab.document.title = "Opening attachment preview...";
         console.log("[attachment-preview]", "Blank preview tab opened.");
 
         try {
-          console.log("[attachment-preview]", "Requesting prepared preview session from Haven.");
-          const previewSession = await selectedDatabase.value.attachments.preparePreviewSession(
-            selectedDocumentId.value,
-            attachmentName,
+          console.log(
+            "[attachment-preview]",
+            "Requesting prepared preview session from Haven.",
           );
-          console.log("[attachment-preview]", "Prepared preview session received.", previewSession);
+          const previewSession =
+            await selectedDatabase.value.attachments.preparePreviewSession(
+              selectedDocumentId.value,
+              attachmentName,
+            );
+          console.log(
+            "[attachment-preview]",
+            "Prepared preview session received.",
+            previewSession,
+          );
           previewTab.location.href = previewSession.previewUrl;
           console.log("[attachment-preview]", "Preview tab navigated.", {
             previewUrl: previewSession.previewUrl,
           });
         } catch (previewError) {
-          console.error("[attachment-preview]", "Preparing preview session failed.", previewError);
+          console.error(
+            "[attachment-preview]",
+            "Preparing preview session failed.",
+            previewError,
+          );
           previewTab.close();
           throw previewError;
         }
         return;
       }
-      await selectedDatabase.value.attachments.openPreview(selectedDocumentId.value, attachmentName);
+      await selectedDatabase.value.attachments.openPreview(
+        selectedDocumentId.value,
+        attachmentName,
+      );
     } catch (previewError) {
-      error.value = readErrorMessage(previewError, "The attachment preview could not be opened.");
+      error.value = readErrorMessage(
+        previewError,
+        "The attachment preview could not be opened.",
+      );
     } finally {
       busyAction.value = null;
     }
@@ -553,14 +661,21 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
    * push-based write stream. Files are chunked at 64 KB boundaries to
    * keep bridge message sizes manageable.
    */
-  async function uploadAttachments(fileList: FileList | readonly File[] | null) {
+  async function uploadAttachments(
+    fileList: FileList | readonly File[] | null,
+  ) {
     const files = fileList ? Array.from(fileList) : [];
     console.log("[mindoodb-app-example.attachments] upload requested", {
       documentId: selectedDocumentId.value,
       fileCount: files.length,
       fileNames: files.map((file) => file.name),
     });
-    if (!selectedDatabase.value || !selectedDocumentId.value || !selectedDocument.value || !files.length) {
+    if (
+      !selectedDatabase.value ||
+      !selectedDocumentId.value ||
+      !selectedDocument.value ||
+      !files.length
+    ) {
       return;
     }
 
@@ -587,9 +702,46 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       }
       await refreshAttachments();
       await refreshDocuments(selectedDocumentId.value);
-      setSuccess(`Uploaded ${files.length} attachment${files.length === 1 ? "" : "s"}.`);
+      setSuccess(
+        `Uploaded ${files.length} attachment${files.length === 1 ? "" : "s"}.`,
+      );
     } catch (uploadError) {
-      error.value = readErrorMessage(uploadError, "The attachment upload failed.");
+      error.value = readErrorMessage(
+        uploadError,
+        "The attachment upload failed.",
+      );
+    } finally {
+      busyAction.value = null;
+    }
+  }
+
+  async function scanAttachment() {
+    if (
+      !selectedDatabase.value ||
+      !selectedDocumentId.value ||
+      !selectedDocument.value
+    ) {
+      return;
+    }
+
+    busyAction.value = "Scanning attachment";
+    error.value = null;
+    try {
+      const result = await selectedDatabase.value.attachments.scan(
+        selectedDocumentId.value,
+        {
+          defaultFileName: `scan-${selectedDocumentId.value}.pdf`,
+          preset: "a4-portrait",
+          mimeType: "application/pdf",
+        },
+      );
+      if (result.ok) {
+        await refreshAttachments();
+        await refreshDocuments(selectedDocumentId.value);
+        setSuccess("Scanned document attached.");
+      }
+    } catch (scanError) {
+      error.value = readErrorMessage(scanError, "The document scan failed.");
     } finally {
       busyAction.value = null;
     }
@@ -605,13 +757,23 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     busyAction.value = "Creating full-text index";
     error.value = null;
     try {
-      indexStats.value = await searchIndex.createIndex(fields, selectedDatabase.value);
+      indexStats.value = await searchIndex.createIndex(
+        fields,
+        selectedDatabase.value,
+      );
       syncIndexState();
-      searchResults.value = searchQuery.value.trim() ? searchIndex.search(searchQuery.value) : [];
-      setSuccess(`Created fulltext index: ${indexStats.value.indexed} documents indexed.`);
+      searchResults.value = searchQuery.value.trim()
+        ? searchIndex.search(searchQuery.value)
+        : [];
+      setSuccess(
+        `Created fulltext index: ${indexStats.value.indexed} documents indexed.`,
+      );
     } catch (indexError) {
       console.error("Create full-text index failed", indexError);
-      error.value = readErrorMessage(indexError, "The full-text index could not be created.");
+      error.value = readErrorMessage(
+        indexError,
+        "The full-text index could not be created.",
+      );
     } finally {
       busyAction.value = null;
     }
@@ -627,12 +789,19 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     try {
       indexStats.value = await searchIndex.syncIndex(selectedDatabase.value);
       syncIndexState();
-      searchResults.value = searchQuery.value.trim() ? searchIndex.search(searchQuery.value) : [];
-      setSuccess(`Updated fulltext index with ${indexStats.value.updated} changes and ${indexStats.value.deleted} deletions.`);
+      searchResults.value = searchQuery.value.trim()
+        ? searchIndex.search(searchQuery.value)
+        : [];
+      setSuccess(
+        `Updated fulltext index with ${indexStats.value.updated} changes and ${indexStats.value.deleted} deletions.`,
+      );
       await refreshDocuments(selectedDocumentId.value);
     } catch (indexError) {
       console.error("Sync full-text index failed", indexError);
-      error.value = readErrorMessage(indexError, "The full-text index could not be synced.");
+      error.value = readErrorMessage(
+        indexError,
+        "The full-text index could not be synced.",
+      );
     } finally {
       busyAction.value = null;
     }
@@ -687,6 +856,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     loadHistory,
     refreshAttachments,
     uploadAttachments,
+    scanAttachment,
     previewAttachment,
     downloadAttachment,
     removeAttachment,

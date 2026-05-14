@@ -16,9 +16,9 @@ const attachmentDragDepth = ref(0);
 
 function canAcceptAttachmentDrop(): boolean {
   return Boolean(
-    props.app.selectedDocument
-      && props.app.canUseAttachments
-      && !props.app.isBusy,
+    props.app.selectedDocument &&
+    props.app.canUseAttachments &&
+    !props.app.isBusy,
   );
 }
 
@@ -118,9 +118,17 @@ function handleSearchInput(event: Event) {
     <div class="section-toolbar">
       <label class="field">
         <span class="field__label">Selected database</span>
-        <select class="native-input" :value="app.selectedDatabaseId ?? ''" @change="handleDatabaseChange">
+        <select
+          class="native-input"
+          :value="app.selectedDatabaseId ?? ''"
+          @change="handleDatabaseChange"
+        >
           <option disabled value="">Select database</option>
-          <option v-for="database in app.databases" :key="database.id" :value="database.id">
+          <option
+            v-for="database in app.databases"
+            :key="database.id"
+            :value="database.id"
+          >
             {{ database.title }} ({{ database.id }})
           </option>
         </select>
@@ -153,15 +161,30 @@ function handleSearchInput(event: Event) {
             <h3>Database contents</h3>
           </div>
           <div class="panel__actions">
-            <Button label="Refresh" severity="secondary" text @click="app.refreshDocuments(app.selectedDocumentId)" />
-            <Button label="New" icon="pi pi-plus" :disabled="!app.canCreate" @click="app.startCreateDocument" />
+            <Button
+              label="Refresh"
+              severity="secondary"
+              text
+              @click="app.refreshDocuments(app.selectedDocumentId)"
+            />
+            <Button
+              label="New"
+              icon="pi pi-plus"
+              :disabled="!app.canCreate"
+              @click="app.startCreateDocument"
+            />
           </div>
         </div>
 
         <div class="document-controls">
           <label class="field">
             <span class="field__label">Document ID filter</span>
-            <input v-model="app.documentIdFilter" class="native-input" type="text" placeholder="Filter document IDs" />
+            <input
+              v-model="app.documentIdFilter"
+              class="native-input"
+              type="text"
+              placeholder="Filter document IDs"
+            />
           </label>
 
           <label class="field">
@@ -215,12 +238,23 @@ function handleSearchInput(event: Event) {
           <div class="field">
             <span class="field__label">Indexed fields</span>
             <div v-if="app.availableSearchFields.length" class="field-picker">
-              <label v-for="field in app.availableSearchFields" :key="field" class="choice">
-                <input v-model="app.searchFieldSelection" type="checkbox" :value="field" />
+              <label
+                v-for="field in app.availableSearchFields"
+                :key="field"
+                class="choice"
+              >
+                <input
+                  v-model="app.searchFieldSelection"
+                  type="checkbox"
+                  :value="field"
+                />
                 <span>{{ field }}</span>
               </label>
             </div>
-            <p v-else class="panel__empty">Open a readable database with existing documents to discover searchable fields.</p>
+            <p v-else class="panel__empty">
+              Open a readable database with existing documents to discover
+              searchable fields.
+            </p>
           </div>
 
           <div class="panel__actions">
@@ -240,12 +274,19 @@ function handleSearchInput(event: Event) {
             />
           </div>
 
-          <Message v-if="app.hasSearchIndex" severity="secondary" :closable="false">
-            Indexed {{ app.indexedFields.join(", ") }}<span v-if="app.indexCursor"> · cursor checkpoint ready</span>
+          <Message
+            v-if="app.hasSearchIndex"
+            severity="secondary"
+            :closable="false"
+          >
+            Indexed {{ app.indexedFields.join(", ")
+            }}<span v-if="app.indexCursor"> · cursor checkpoint ready</span>
           </Message>
           <Message v-if="app.indexStats" severity="info" :closable="false">
             Processed {{ app.indexStats.totalProcessed }} change(s),
-            <span v-if="'indexed' in app.indexStats">{{ app.indexStats.indexed }} indexed</span>
+            <span v-if="'indexed' in app.indexStats"
+              >{{ app.indexStats.indexed }} indexed</span
+            >
             <span v-else>{{ app.indexStats.updated }} updated</span>,
             {{ app.indexStats.deleted }} deleted.
           </Message>
@@ -256,7 +297,9 @@ function handleSearchInput(event: Event) {
             v-for="document in app.documents"
             :key="document.id"
             class="document-card"
-            :class="{ 'document-card--active': document.id === app.selectedDocumentId }"
+            :class="{
+              'document-card--active': document.id === app.selectedDocumentId,
+            }"
             @click="void app.selectDocument(document.id)"
           >
             <div class="document-card__header">
@@ -268,21 +311,37 @@ function handleSearchInput(event: Event) {
                 rounded
               />
             </div>
-            <span v-if="document.identityLabel || document.publicKeyFingerprint">
-              {{ formatDocumentActor(document.identityLabel ?? document.publicKeyFingerprint) }}
+            <span
+              v-if="document.identityLabel || document.publicKeyFingerprint"
+            >
+              {{
+                formatDocumentActor(
+                  document.identityLabel ?? document.publicKeyFingerprint,
+                )
+              }}
             </span>
-            <span>Updated: {{ formatDocumentUpdatedAt(document.updatedAt) }}</span>
+            <span
+              >Updated: {{ formatDocumentUpdatedAt(document.updatedAt) }}</span
+            >
             <span>{{ document.attachmentCount ?? 0 }} attachment(s)</span>
           </button>
         </div>
-        <p v-else class="panel__empty">No documents were returned for this database yet.</p>
+        <p v-else class="panel__empty">
+          No documents were returned for this database yet.
+        </p>
       </section>
 
       <section class="glass-card panel panel--editor">
         <div class="panel__header">
           <div>
             <p class="panel__eyebrow">Editor</p>
-            <h3>{{ app.editorMode === "create" ? "Create document" : "Edit document" }}</h3>
+            <h3>
+              {{
+                app.editorMode === "create"
+                  ? "Create document"
+                  : "Edit document"
+              }}
+            </h3>
           </div>
           <div class="panel__actions">
             <Button
@@ -296,7 +355,9 @@ function handleSearchInput(event: Event) {
               icon="pi pi-trash"
               severity="danger"
               text
-              :disabled="!app.selectedDocumentId || !app.canDelete || app.isBusy"
+              :disabled="
+                !app.selectedDocumentId || !app.canDelete || app.isBusy
+              "
               @click="app.deleteDocument"
             />
           </div>
@@ -321,7 +382,11 @@ function handleSearchInput(event: Event) {
             />
           </div>
 
-          <Message v-if="app.historyMessage" severity="secondary" :closable="false">
+          <Message
+            v-if="app.historyMessage"
+            severity="secondary"
+            :closable="false"
+          >
             {{ app.historyMessage }}
           </Message>
 
@@ -334,8 +399,18 @@ function handleSearchInput(event: Event) {
                 @click="app.loadHistory(entry.timestamp)"
               >
                 <strong>{{ formatDate(entry.timestamp) }}</strong>
-                <span>{{ entry.identityLabel || entry.publicKeyFingerprint || entry.publicKey }}</span>
-                <span>{{ entry.isDeleted ? "Deleted" : entry.isCurrent ? "Current revision" : entry.summary || "Historical snapshot" }}</span>
+                <span>{{
+                  entry.identityLabel ||
+                  entry.publicKeyFingerprint ||
+                  entry.publicKey
+                }}</span>
+                <span>{{
+                  entry.isDeleted
+                    ? "Deleted"
+                    : entry.isCurrent
+                      ? "Current revision"
+                      : entry.summary || "Historical snapshot"
+                }}</span>
               </button>
             </div>
             <JsonCodeEditor
@@ -344,7 +419,10 @@ function handleSearchInput(event: Event) {
               :min-height="220"
             />
           </div>
-          <p v-else class="panel__empty">Load history to inspect the available revisions for the selected document.</p>
+          <p v-else class="panel__empty">
+            Load history to inspect the available revisions for the selected
+            document.
+          </p>
         </section>
 
         <section
@@ -355,21 +433,35 @@ function handleSearchInput(event: Event) {
           @dragleave="handleAttachmentDragLeave"
           @drop="handleAttachmentDrop"
         >
-          <div class="panel__header">
+          <div class="panel__header attachments-panel__header">
             <div>
-              <p class="panel__eyebrow">Attachments</p>
-              <h3>Files</h3>
+              <h3>Attachments</h3>
             </div>
-            <label class="upload-button">
-              <input
-                class="sr-only"
-                type="file"
-                multiple
-                :disabled="!app.selectedDocument || !app.canUseAttachments || app.isBusy"
-                @change="handleUpload"
+            <div class="attachments-panel__controls">
+              <label class="upload-button">
+                <input
+                  class="sr-only"
+                  type="file"
+                  multiple
+                  :disabled="
+                    !app.selectedDocument || !app.canUseAttachments || app.isBusy
+                  "
+                  @change="handleUpload"
+                />
+                <span>Upload</span>
+              </label>
+              <Button
+                label="Scan document"
+                severity="secondary"
+                :disabled="
+                  !app.selectedDocument ||
+                  !app.canUseAttachments ||
+                  !app.canUpdate ||
+                  app.isBusy
+                "
+                @click="app.scanAttachment"
               />
-              <span>Upload</span>
-            </label>
+            </div>
           </div>
 
           <p
@@ -379,12 +471,20 @@ function handleSearchInput(event: Event) {
             Drop files here from Files or Photos to attach them.
           </p>
 
-          <Message v-if="app.attachmentMessage" severity="secondary" :closable="false">
+          <Message
+            v-if="app.attachmentMessage"
+            severity="secondary"
+            :closable="false"
+          >
             {{ app.attachmentMessage }}
           </Message>
 
           <div v-else-if="app.attachments.length" class="attachment-list">
-            <article v-for="attachment in app.attachments" :key="attachment.attachmentId" class="attachment-item">
+            <article
+              v-for="attachment in app.attachments"
+              :key="attachment.attachmentId"
+              class="attachment-item"
+            >
               <div>
                 <strong>{{ attachment.fileName }}</strong>
                 <p>{{ attachment.mimeType }} · {{ attachment.size }} bytes</p>
@@ -395,7 +495,12 @@ function handleSearchInput(event: Event) {
                   size="small"
                   severity="secondary"
                   text
-                  :disabled="!app.canPreviewAttachment(attachment.fileName, attachment.mimeType)"
+                  :disabled="
+                    !app.canPreviewAttachment(
+                      attachment.fileName,
+                      attachment.mimeType,
+                    )
+                  "
                   @click="app.previewAttachment(attachment.fileName)"
                 />
                 <Button
@@ -414,7 +519,9 @@ function handleSearchInput(event: Event) {
               </div>
             </article>
           </div>
-          <p v-else class="panel__empty">No attachments are stored for the current document.</p>
+          <p v-else class="panel__empty">
+            No attachments are stored for the current document.
+          </p>
         </section>
       </section>
     </div>
@@ -476,7 +583,10 @@ function handleSearchInput(event: Event) {
 
 .database-layout {
   display: grid;
-  grid-template-columns: minmax(16rem, 20rem) minmax(0, 1.25fr) minmax(20rem, 0.9fr);
+  grid-template-columns: minmax(16rem, 20rem) minmax(0, 1.25fr) minmax(
+      20rem,
+      0.9fr
+    );
   gap: 1rem;
 }
 
@@ -558,12 +668,33 @@ function handleSearchInput(event: Event) {
 
 .attachments-panel {
   border: 2px dashed transparent;
-  transition: border-color 120ms ease, background-color 120ms ease;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.attachments-panel__header {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.attachments-panel__header > :first-child {
+  flex: 0 0 auto;
+}
+
+.attachments-panel__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .attachments-panel--drag-active {
   border-color: var(--p-primary-color, #d4a017);
-  background-color: color-mix(in srgb, var(--p-primary-color, #d4a017) 10%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--p-primary-color, #d4a017) 10%,
+    transparent
+  );
 }
 
 .attachments-panel--drag-active * {
