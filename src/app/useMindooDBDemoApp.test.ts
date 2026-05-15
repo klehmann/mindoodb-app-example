@@ -1,19 +1,32 @@
 import { effectScope } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { MindooDBAppAttachmentApi, MindooDBAppViewEntry, MindooDBAppViewNavigator } from "mindoodb-app-sdk";
+import type {
+  MindooDBAppAttachmentApi,
+  MindooDBAppViewEntry,
+  MindooDBAppViewNavigator,
+} from "mindoodb-app-sdk";
 import type { MockMindooDBAppSessionController } from "mindoodb-app-sdk/testing";
 import { createMockMindooDBAppBridge } from "mindoodb-app-sdk/testing";
 
 import { useMindooDBDemoApp } from "@/app/useMindooDBDemoApp";
 
 let bridgeController: MockMindooDBAppSessionController;
-let openPreview: ReturnType<typeof vi.fn<MindooDBAppAttachmentApi["openPreview"]>>;
-let preparePreviewSession: ReturnType<typeof vi.fn<MindooDBAppAttachmentApi["preparePreviewSession"]>>;
-let openWriteStream: ReturnType<typeof vi.fn<MindooDBAppAttachmentApi["openWriteStream"]>>;
+let openPreview: ReturnType<
+  typeof vi.fn<MindooDBAppAttachmentApi["openPreview"]>
+>;
+let preparePreviewSession: ReturnType<
+  typeof vi.fn<MindooDBAppAttachmentApi["preparePreviewSession"]>
+>;
+let openWriteStream: ReturnType<
+  typeof vi.fn<MindooDBAppAttachmentApi["openWriteStream"]>
+>;
 
 vi.mock("mindoodb-app-sdk", async () => {
-  const actual = await vi.importActual<typeof import("mindoodb-app-sdk")>("mindoodb-app-sdk");
+  const actual =
+    await vi.importActual<typeof import("mindoodb-app-sdk")>(
+      "mindoodb-app-sdk",
+    );
   return {
     ...actual,
     canPreviewAttachment: actual.canPreviewAttachment ?? (() => null),
@@ -23,24 +36,31 @@ vi.mock("mindoodb-app-sdk", async () => {
 
 describe("useMindooDBDemoApp", () => {
   beforeEach(() => {
-    const uploadedAttachments: Array<{ attachmentId: string; fileName: string; mimeType: string; size: number }> = [];
+    const uploadedAttachments: Array<{
+      attachmentId: string;
+      fileName: string;
+      mimeType: string;
+      size: number;
+    }> = [];
     openPreview = vi.fn(async () => ({ ok: true as const }));
     preparePreviewSession = vi.fn(async () => ({
       sessionId: "preview-session-1",
       previewUrl: "https://haven.example/attachments/preview/preview-session-1",
     }));
-    openWriteStream = vi.fn(async (_docId: string, attachmentName: string, mimeType?: string) => ({
-      write: vi.fn(async () => {}),
-      close: vi.fn(async () => {
-        uploadedAttachments.push({
-          attachmentId: `${attachmentName}-id`,
-          fileName: attachmentName,
-          mimeType: mimeType || "application/octet-stream",
-          size: 5,
-        });
+    openWriteStream = vi.fn(
+      async (_docId: string, attachmentName: string, mimeType?: string) => ({
+        write: vi.fn(async () => {}),
+        close: vi.fn(async () => {
+          uploadedAttachments.push({
+            attachmentId: `${attachmentName}-id`,
+            fileName: attachmentName,
+            mimeType: mimeType || "application/octet-stream",
+            size: 5,
+          });
+        }),
+        abort: vi.fn(async () => {}),
       }),
-      abort: vi.fn(async () => {}),
-    }));
+    );
     bridgeController = createMockMindooDBAppBridge({
       launchContext: {
         appId: "mindoodb-app-example",
@@ -56,42 +76,51 @@ describe("useMindooDBDemoApp", () => {
           iosMultitaskingOptimized: false,
         },
       },
-      databases: [{
-        info: {
-          id: "main",
-          title: "Main",
-          capabilities: ["read", "create", "update", "delete", "history", "attachments"],
-        },
-        methods: {
-          documents: {
-            async list() {
-              return {
-                items: [{ id: "doc-1" }],
-                nextCursor: null,
-              };
+      databases: [
+        {
+          info: {
+            id: "main",
+            title: "Main",
+            capabilities: [
+              "read",
+              "create",
+              "update",
+              "delete",
+              "history",
+              "attachments",
+            ],
+          },
+          methods: {
+            documents: {
+              async list() {
+                return {
+                  items: [{ id: "doc-1" }],
+                  nextCursor: null,
+                };
+              },
+              async get(docId) {
+                return {
+                  id: docId,
+                  data: {
+                    title: "Hello",
+                  },
+                };
+              },
+              async listHistory() {
+                return [];
+              },
             },
-            async get(docId) {
-              return {
-                id: docId,
-                data: {
-                  title: "Hello",
-                },
-              };
-            },
-            async listHistory() {
-              return [];
+            attachments: {
+              async list() {
+                return [...uploadedAttachments];
+              },
+              preparePreviewSession,
+              openPreview,
+              openWriteStream,
             },
           },
-          attachments: {
-            async list() {
-              return [...uploadedAttachments];
-            },
-            preparePreviewSession,
-            openPreview,
-            openWriteStream,
-          },
         },
-      }],
+      ],
     });
   });
 
@@ -109,7 +138,7 @@ describe("useMindooDBDemoApp", () => {
     expect(app.selectedDatabaseId.value).toBe("main");
     expect(app.selectedDocumentId.value).toBe("doc-1");
     expect(app.editorMode.value).toBe("edit");
-    expect(app.editorJson.value).toContain("\"title\": \"Hello\"");
+    expect(app.editorJson.value).toContain('"title": "Hello"');
     expect(app.eventLog.value.map((entry) => entry.kind)).toEqual([
       "launch-ui-preferences",
       "launch-viewport",
@@ -138,8 +167,14 @@ describe("useMindooDBDemoApp", () => {
     });
     expect(app.eventLog.value[0]?.kind).toBe("ui-preferences-changed");
     expect(app.eventLog.value[1]?.kind).toBe("viewport-changed");
-    expect(app.eventLog.value.some((entry) => entry.kind === "theme-changed")).toBe(true);
-    expect(app.eventLog.value.some((entry) => entry.kind === "ui-preferences-changed")).toBe(true);
+    expect(
+      app.eventLog.value.some((entry) => entry.kind === "theme-changed"),
+    ).toBe(true);
+    expect(
+      app.eventLog.value.some(
+        (entry) => entry.kind === "ui-preferences-changed",
+      ),
+    ).toBe(true);
 
     scope.stop();
   });
@@ -272,7 +307,13 @@ describe("useMindooDBDemoApp", () => {
         return entries.find((entry) => entry.position === position) ?? null;
       },
       async findCategoryEntryByParts(parts: unknown[]) {
-        return entries.find((entry) => entry.kind === "category" && JSON.stringify(entry.categoryPath) === JSON.stringify(parts)) ?? null;
+        return (
+          entries.find(
+            (entry) =>
+              entry.kind === "category" &&
+              JSON.stringify(entry.categoryPath) === JSON.stringify(parts),
+          ) ?? null
+        );
       },
       async entriesForward() {
         return {
@@ -357,66 +398,72 @@ describe("useMindooDBDemoApp", () => {
     bridgeController = createMockMindooDBAppBridge({
       launchContext: {
         appId: "mindoodb-app-example",
-        views: [{
-          id: "tasks-by-project",
-          description: "Tasks grouped by project",
-          categorizationStyle: "category_then_document",
-          previewMode: "tree",
-          filter: {
-            mode: "formula",
-            expression: { kind: "literal", value: true },
+        views: [
+          {
+            id: "tasks-by-project",
+            description: "Tasks grouped by project",
+            categorizationStyle: "category_then_document",
+            previewMode: "tree",
+            filter: {
+              mode: "formula",
+              expression: { kind: "literal", value: true },
+            },
+            columns: [
+              {
+                id: "project",
+                name: "project",
+                title: "Project",
+                role: "category",
+                expression: { mode: "field", field: "project" },
+                sorting: "ascending",
+                totalMode: "none",
+                hidden: false,
+              },
+              {
+                id: "title",
+                name: "title",
+                title: "Title",
+                role: "display",
+                expression: { mode: "field", field: "title" },
+                sorting: "ascending",
+                totalMode: "none",
+                hidden: false,
+              },
+            ],
+            sources: [
+              {
+                origin: "main",
+                databaseId: "main",
+                title: "Main",
+                tenantId: "tenant-1",
+                databaseName: "Main",
+                targetMode: "local",
+              },
+            ],
           },
-          columns: [
-            {
-              id: "project",
-              name: "project",
-              title: "Project",
-              role: "category",
-              expression: { mode: "field", field: "project" },
-              sorting: "ascending",
-              totalMode: "none",
-              hidden: false,
-            },
-            {
-              id: "title",
-              name: "title",
-              title: "Title",
-              role: "display",
-              expression: { mode: "field", field: "title" },
-              sorting: "ascending",
-              totalMode: "none",
-              hidden: false,
-            },
-          ],
-          sources: [{
-            origin: "main",
-            databaseId: "main",
-            title: "Main",
-            tenantId: "tenant-1",
-            databaseName: "Main",
-            targetMode: "local",
-          }],
-        }],
+        ],
       },
-      databases: [{
-        info: {
-          id: "main",
-          title: "Main",
-          capabilities: ["read"],
-        },
-        methods: {
-          documents: {
-            async list() {
-              return { items: [], nextCursor: null };
+      databases: [
+        {
+          info: {
+            id: "main",
+            title: "Main",
+            capabilities: ["read"],
+          },
+          methods: {
+            documents: {
+              async list() {
+                return { items: [], nextCursor: null };
+              },
+            },
+            views: {
+              async open() {
+                return navigator;
+              },
             },
           },
-          views: {
-            async open() {
-              return navigator;
-            },
-          },
         },
-      }],
+      ],
     });
 
     const scope = effectScope();
@@ -446,55 +493,57 @@ describe("useMindooDBDemoApp", () => {
     scope.stop();
   });
 
-  it("opens a dedicated Haven preview tab when running in a window", async () => {
+  it("delegates window-mode attachment previews to the SDK", async () => {
     bridgeController = createMockMindooDBAppBridge({
       launchContext: {
         appId: "mindoodb-app-example",
         runtime: "window",
       },
-      databases: [{
-        info: {
-          id: "main",
-          title: "Main",
-          capabilities: ["read", "create", "update", "delete", "history", "attachments"],
-        },
-        methods: {
-          documents: {
-            async list() {
-              return {
-                items: [{ id: "doc-1" }],
-                nextCursor: null,
-              };
+      databases: [
+        {
+          info: {
+            id: "main",
+            title: "Main",
+            capabilities: [
+              "read",
+              "create",
+              "update",
+              "delete",
+              "history",
+              "attachments",
+            ],
+          },
+          methods: {
+            documents: {
+              async list() {
+                return {
+                  items: [{ id: "doc-1" }],
+                  nextCursor: null,
+                };
+              },
+              async get(docId) {
+                return {
+                  id: docId,
+                  data: {
+                    title: "Hello",
+                  },
+                };
+              },
+              async listHistory() {
+                return [];
+              },
             },
-            async get(docId) {
-              return {
-                id: docId,
-                data: {
-                  title: "Hello",
-                },
-              };
-            },
-            async listHistory() {
-              return [];
+            attachments: {
+              async list() {
+                return [];
+              },
+              preparePreviewSession,
+              openPreview,
             },
           },
-          attachments: {
-            async list() {
-              return [];
-            },
-            preparePreviewSession,
-            openPreview,
-          },
         },
-      }],
+      ],
     });
-
-    const popup = {
-      document: { title: "" },
-      location: { href: "" },
-      close: vi.fn(),
-    } as unknown as Window;
-    const openSpy = vi.spyOn(window, "open").mockReturnValue(popup);
 
     const scope = effectScope();
     const app = scope.run(() => useMindooDBDemoApp());
@@ -505,13 +554,10 @@ describe("useMindooDBDemoApp", () => {
     await app.connect();
     await app.previewAttachment("invoice.pdf");
 
-    expect(openSpy).toHaveBeenCalledWith("", "_blank");
-    expect(preparePreviewSession).toHaveBeenCalledWith("doc-1", "invoice.pdf");
-    expect(popup.location.href).toBe("https://haven.example/attachments/preview/preview-session-1");
-    expect(openPreview).not.toHaveBeenCalled();
+    expect(openPreview).toHaveBeenCalledWith("doc-1", "invoice.pdf");
+    expect(preparePreviewSession).not.toHaveBeenCalled();
 
     scope.stop();
-    openSpy.mockRestore();
   });
 
   it("reports the uploaded attachment count from a snapshot instead of a live FileList", async () => {
@@ -523,7 +569,9 @@ describe("useMindooDBDemoApp", () => {
 
     await app.connect();
 
-    const backingFiles = [new File(["hello"], "invoice.pdf", { type: "application/pdf" })];
+    const backingFiles = [
+      new File(["hello"], "invoice.pdf", { type: "application/pdf" }),
+    ];
     const liveFileList = {
       get length() {
         return backingFiles.length;
@@ -531,7 +579,7 @@ describe("useMindooDBDemoApp", () => {
       item(index: number) {
         return backingFiles[index] ?? null;
       },
-      [Symbol.iterator]: function *() {
+      [Symbol.iterator]: function* () {
         yield* backingFiles;
       },
     } as unknown as FileList;
@@ -540,7 +588,11 @@ describe("useMindooDBDemoApp", () => {
     backingFiles.splice(0, backingFiles.length);
     await uploadPromise;
 
-    expect(openWriteStream).toHaveBeenCalledWith("doc-1", "invoice.pdf", "application/pdf");
+    expect(openWriteStream).toHaveBeenCalledWith(
+      "doc-1",
+      "invoice.pdf",
+      "application/pdf",
+    );
     expect(app.successMessage.value).toBe("Uploaded 1 attachment.");
     expect(app.attachments.value).toEqual([
       expect.objectContaining({
