@@ -28,7 +28,7 @@
     "@primeuix/themes": "^2.0.3",
     "codemirror": "^6.0.2",
     "flexsearch": "^0.8.212",
-    "mindoodb-app-sdk": "0.0.19",
+    "mindoodb-app-sdk": "0.0.20",
     "mindoodb-view-language": "0.0.13",
     "primeicons": "^7.0.0",
     "primevue": "^4.5.4",
