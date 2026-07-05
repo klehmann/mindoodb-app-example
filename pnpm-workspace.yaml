@@ -20,3 +20,10 @@ minimumReleaseAgeExclude:
   - mindoodb
   - mindoodb-app-sdk
   - mindoodb-view-language
+
+# Local development against unreleased mindoodb-app-sdk /
+# mindoodb-view-language versions is handled by .pnpmfile.cjs: it
+# redirects the registry dependencies to the tarballs in the sibling
+# checkouts when they exist (kl_npminstall.sh passes the hook file
+# explicitly via --pnpmfile because --ignore-workspace skips
+# auto-discovery).

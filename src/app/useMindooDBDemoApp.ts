@@ -207,6 +207,7 @@ export function useMindooDBDemoApp() {
       selectedDatabaseId.value = databaseId;
       selectedDatabase.value = await session.value.openDatabase(databaseId);
       documents.resetSearchIndexState();
+      await documents.refreshSearchSetup();
       await documents.refreshDocuments();
       if (views.selectedView.value) {
         const usesSelectedDb = views.selectedView.value.sources.some((source) => source.databaseId === databaseId);
@@ -279,14 +280,12 @@ export function useMindooDBDemoApp() {
     hasSearchIndex: documents.hasSearchIndex,
     searchQuery: documents.searchQuery,
     searchResults: documents.searchResults,
-    indexCursor: documents.indexCursor,
-    indexStats: documents.indexStats,
     canSaveCurrentDocument: documents.canSaveCurrentDocument,
     canPreviewAttachment: documents.canPreviewAttachment,
     startCreateDocument: documents.startCreateDocument,
     selectDocument: documents.selectDocument,
-    createSearchIndex: documents.createSearchIndex,
-    syncSearchIndex: documents.syncSearchIndex,
+    enableSearchIndex: documents.enableSearchIndex,
+    disableSearchIndex: documents.disableSearchIndex,
     setSearchQuery: documents.setSearchQuery,
     setDocumentListMode: documents.setDocumentListMode,
     saveDocument: documents.saveDocument,

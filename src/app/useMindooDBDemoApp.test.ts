@@ -394,6 +394,9 @@ describe("useMindooDBDemoApp", () => {
       async getSortedDocIdsScoped() {
         return [{ origin: "main", docId: "doc-1" }];
       },
+      onDidUpdate() {
+        return () => {};
+      },
       async dispose() {},
     } satisfies MindooDBAppViewNavigator;
 
@@ -558,6 +561,61 @@ describe("useMindooDBDemoApp", () => {
 
     expect(openPreview).toHaveBeenCalledWith("doc-1", "invoice.pdf");
     expect(preparePreviewSession).not.toHaveBeenCalled();
+
+    scope.stop();
+  });
+
+  it("enables the built-in full-text index and searches through documents.query", async () => {
+    bridgeController = createMockMindooDBAppBridge({
+      launchContext: {
+        appId: "mindoodb-app-example",
+      },
+      databases: [
+        {
+          info: {
+            id: "main",
+            title: "Main",
+            capabilities: ["read", "create", "update", "delete"],
+          },
+        },
+      ],
+    });
+
+    // Seed documents through the same mock store the app will query.
+    const seedSession = await bridgeController.bridge.connect();
+    const seedDb = await seedSession.openDatabase("main");
+    const solar = await seedDb.documents.create({
+      set: { subject: "solar panel report", body: "annual yield numbers" },
+    });
+    await seedDb.documents.create({
+      set: { subject: "wind turbine notes", body: "maintenance schedule" },
+    });
+
+    const scope = effectScope();
+    const app = scope.run(() => useMindooDBDemoApp());
+    if (!app) {
+      throw new Error("Expected the composable to initialize.");
+    }
+
+    await app.connect();
+    expect(app.hasSearchIndex.value).toBe(false);
+
+    await app.enableSearchIndex(["subject", "body"]);
+    expect(app.hasSearchIndex.value).toBe(true);
+    expect(app.indexedFields.value).toEqual(["subject", "body"]);
+    await expect(seedDb.getFulltextSetup()).resolves.toEqual({
+      enabled: true,
+      include: ["subject", "body"],
+    });
+
+    app.setSearchQuery("solar");
+    await vi.waitFor(() => {
+      expect(app.searchResults.value).toEqual([solar.id]);
+    });
+    expect(app.documents.value.map((doc) => doc.id)).toEqual([solar.id]);
+
+    app.setSearchQuery("");
+    expect(app.searchResults.value).toEqual([]);
 
     scope.stop();
   });

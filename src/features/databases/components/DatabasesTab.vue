@@ -259,18 +259,18 @@ function handleSearchInput(event: Event) {
 
           <div class="panel__actions">
             <Button
-              label="Create Index"
+              :label="app.hasSearchIndex ? 'Update Index Fields' : 'Enable Index'"
               severity="secondary"
               text
               :disabled="!app.searchFieldSelection.length || app.isBusy"
-              @click="app.createSearchIndex(app.searchFieldSelection)"
+              @click="app.enableSearchIndex(app.searchFieldSelection)"
             />
             <Button
-              label="Sync Index"
+              label="Disable Index"
               severity="secondary"
               text
               :disabled="!app.hasSearchIndex || app.isBusy"
-              @click="app.syncSearchIndex"
+              @click="app.disableSearchIndex"
             />
           </div>
 
@@ -279,16 +279,13 @@ function handleSearchInput(event: Event) {
             severity="secondary"
             :closable="false"
           >
-            Indexed {{ app.indexedFields.join(", ")
-            }}<span v-if="app.indexCursor"> · cursor checkpoint ready</span>
-          </Message>
-          <Message v-if="app.indexStats" severity="info" :closable="false">
-            Processed {{ app.indexStats.totalProcessed }} change(s),
-            <span v-if="'indexed' in app.indexStats"
-              >{{ app.indexStats.indexed }} indexed</span
-            >
-            <span v-else>{{ app.indexStats.updated }} updated</span>,
-            {{ app.indexStats.deleted }} deleted.
+            Full-text index enabled ·
+            {{
+              app.indexedFields.length
+                ? `indexed fields: ${app.indexedFields.join(", ")}`
+                : "all fields (auto mode)"
+            }}
+            · kept current by the host
           </Message>
         </div>
 

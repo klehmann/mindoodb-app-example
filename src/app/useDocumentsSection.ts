@@ -9,8 +9,9 @@
  * - **Revision history** -- listing history entries and restoring snapshots.
  * - **Attachments** -- list, upload (chunked write stream), download (read
  *   stream to Blob), preview (Haven viewer or pop-out), and remove.
- * - **Full-text search** -- client-side FlexSearch index: create, incremental
- *   sync, and query.
+ * - **Full-text search** -- MindooDB's built-in full-text index: enable it
+ *   through `db.setFulltextSetup()` and query it with the `text` clause of
+ *   `documents.query()` (host-maintained, no client index to build or sync).
  *
  * ## Injected dependencies
  *
@@ -38,17 +39,8 @@ import {
   type MindooDBAppLaunchContext,
 } from "mindoodb-app-sdk";
 
-import {
-  createDocumentSearchIndex,
-  type SearchIndexCreateStats,
-  type SearchIndexSyncStats,
-} from "@/features/databases/lib/searchIndex";
-
 /** Filter applied to the document list API: show all, only live, or only soft-deleted documents. */
 type DocumentListMode = "all" | "existing" | "deleted";
-
-/** Union of the stats objects returned after creating or incrementally syncing the FlexSearch index. */
-type SearchIndexStats = SearchIndexCreateStats | SearchIndexSyncStats;
 
 /** Pretty-print any value as indented JSON, defaulting to `{}` for nullish input. */
 function stringifyJson(value: unknown) {
@@ -134,8 +126,6 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     onDocumentMutation,
   } = deps;
 
-  const searchIndex = createDocumentSearchIndex();
-
   // ── Document browsing & editing state ──────────────────────────────
   // The browsable list stores lightweight summaries; the full document
   // body is loaded lazily when a row is selected.
@@ -154,14 +144,15 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
   const documentIdFilter = ref("");
   const documentListMode = ref<DocumentListMode>("existing");
 
-  // ── Full-text search state (client-side FlexSearch) ────────────────
+  // ── Full-text search state (host-side MindooDB full-text index) ────
   const availableSearchFields = ref<string[]>([]);
   const searchFieldSelection = ref<string[]>([]);
   const indexedFields = ref<string[]>([]);
+  const fulltextEnabled = ref(false);
   const searchQuery = ref("");
   const searchResults = ref<string[]>([]);
-  const indexCursor = ref<string | null>(null);
-  const indexStats = ref<SearchIndexStats | null>(null);
+  let searchRunToken = 0;
+  let searchDebounceHandle: ReturnType<typeof setTimeout> | null = null;
 
   // ── Derived / computed state ───────────────────────────────────────
 
@@ -171,14 +162,14 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
         (document) => document.id === selectedDocumentId.value,
       ) ?? null,
   );
-  const hasSearchIndex = computed(() => indexedFields.value.length > 0);
+  const hasSearchIndex = computed(() => fulltextEnabled.value);
 
   /**
    * Filtered document list shown in the Databases tab.
    *
    * Applies two local-only filters on top of the already-fetched summary
    * list: an ID substring match and, when a search query is active, an
-   * intersection with the FlexSearch hit set.
+   * intersection with the docIds matched by the host's full-text query.
    */
   const documents = computed(() => {
     const idFilter = documentIdFilter.value.trim().toLowerCase();
@@ -272,23 +263,72 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     }
   }
 
-  /** Mirror the search helper's internal checkpoint and schema back into reactive UI state. */
-  function syncIndexState() {
-    const state = searchIndex.getState();
-    indexedFields.value = state.indexedFields;
-    indexCursor.value = state.cursor;
-  }
-
-  /** Reset all derived search state when switching databases or rebuilding from scratch. */
+  /** Reset all derived search state when switching databases. */
   function resetSearchIndexState() {
-    searchIndex.clear();
+    searchRunToken += 1;
+    if (searchDebounceHandle !== null) {
+      clearTimeout(searchDebounceHandle);
+      searchDebounceHandle = null;
+    }
     searchFieldSelection.value = [];
     availableSearchFields.value = [];
     indexedFields.value = [];
+    fulltextEnabled.value = false;
     searchQuery.value = "";
     searchResults.value = [];
-    indexCursor.value = null;
-    indexStats.value = null;
+  }
+
+  /**
+   * Read the database's full-text configuration (from the synced `dbsetup`
+   * document) and mirror it into the reactive search UI state.
+   */
+  async function refreshSearchSetup() {
+    fulltextEnabled.value = false;
+    indexedFields.value = [];
+    if (!selectedDatabase.value || !canRead.value) {
+      return;
+    }
+    try {
+      const setup = await selectedDatabase.value.getFulltextSetup();
+      fulltextEnabled.value = setup?.enabled === true;
+      indexedFields.value = setup?.include ? [...setup.include] : [];
+      if (indexedFields.value.length && !searchFieldSelection.value.length) {
+        searchFieldSelection.value = [...indexedFields.value];
+      }
+    } catch (setupError) {
+      console.error("Reading the full-text setup failed", setupError);
+    }
+  }
+
+  /**
+   * Run the active search query against the host's full-text index and
+   * store the matching docIds. Stale responses (from a superseded query
+   * or database switch) are dropped via the run token.
+   */
+  async function runSearchQuery() {
+    const query = searchQuery.value.trim();
+    const token = ++searchRunToken;
+    if (!query || !selectedDatabase.value || !fulltextEnabled.value) {
+      searchResults.value = [];
+      return;
+    }
+    try {
+      const result = await selectedDatabase.value.documents.query({
+        text: { query },
+        limit: 1000,
+      });
+      if (token !== searchRunToken) {
+        return;
+      }
+      searchResults.value = result.rows.map((row) => row.docId);
+    } catch (searchError) {
+      if (token !== searchRunToken) {
+        return;
+      }
+      console.error("Full-text query failed", searchError);
+      searchResults.value = [];
+      error.value = readErrorMessage(searchError, "The full-text search failed.");
+    }
   }
 
   // ── Document selection & CRUD ──────────────────────────────────────
@@ -335,7 +375,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     );
     await refreshAvailableSearchFields();
     if (searchQuery.value.trim()) {
-      searchResults.value = searchIndex.search(searchQuery.value);
+      await runSearchQuery();
     }
 
     const nextDocId =
@@ -702,68 +742,80 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
 
   // ── Full-text search actions ────────────────────────────────────────
 
-  /** Build a new FlexSearch index from scratch over the selected fields. */
-  async function createSearchIndex(fields: string[]) {
+  /**
+   * Enable (or reconfigure) the database's built-in full-text index for the
+   * selected fields. The configuration lands in the synced `dbsetup`
+   * document; the host indexes in the background from then on — there is
+   * nothing to sync manually.
+   */
+  async function enableSearchIndex(fields: string[]) {
     if (!selectedDatabase.value) {
       return;
     }
-    busyAction.value = "Creating full-text index";
+    busyAction.value = "Enabling full-text index";
     error.value = null;
     try {
-      indexStats.value = await searchIndex.createIndex(
-        fields,
-        selectedDatabase.value,
-      );
-      syncIndexState();
-      searchResults.value = searchQuery.value.trim()
-        ? searchIndex.search(searchQuery.value)
-        : [];
+      await selectedDatabase.value.setFulltextSetup({
+        enabled: true,
+        include: fields,
+      });
+      await refreshSearchSetup();
+      await runSearchQuery();
       setSuccess(
-        `Created fulltext index: ${indexStats.value.indexed} documents indexed.`,
+        `Full-text index enabled for ${fields.length} field${fields.length === 1 ? "" : "s"}.`,
       );
     } catch (indexError) {
-      console.error("Create full-text index failed", indexError);
+      console.error("Enable full-text index failed", indexError);
       error.value = readErrorMessage(
         indexError,
-        "The full-text index could not be created.",
+        "The full-text index could not be enabled.",
       );
     } finally {
       busyAction.value = null;
     }
   }
 
-  /** Replay only changes since the last stored checkpoint into the in-memory FlexSearch index. */
-  async function syncSearchIndex() {
+  /** Remove the full-text configuration; the host drops the index. */
+  async function disableSearchIndex() {
     if (!selectedDatabase.value) {
       return;
     }
-    busyAction.value = "Syncing full-text index";
+    busyAction.value = "Disabling full-text index";
     error.value = null;
     try {
-      indexStats.value = await searchIndex.syncIndex(selectedDatabase.value);
-      syncIndexState();
-      searchResults.value = searchQuery.value.trim()
-        ? searchIndex.search(searchQuery.value)
-        : [];
-      setSuccess(
-        `Updated fulltext index with ${indexStats.value.updated} changes and ${indexStats.value.deleted} deletions.`,
-      );
-      await refreshDocuments(selectedDocumentId.value);
+      await selectedDatabase.value.setFulltextSetup(null);
+      await refreshSearchSetup();
+      searchResults.value = [];
+      setSuccess("Full-text index disabled.");
     } catch (indexError) {
-      console.error("Sync full-text index failed", indexError);
+      console.error("Disable full-text index failed", indexError);
       error.value = readErrorMessage(
         indexError,
-        "The full-text index could not be synced.",
+        "The full-text index could not be disabled.",
       );
     } finally {
       busyAction.value = null;
     }
   }
 
-  /** Search runs entirely against the local FlexSearch index, not against Haven. */
+  /**
+   * Update the search box value and (debounced) run the query against the
+   * host's full-text index.
+   */
   function setSearchQuery(query: string) {
     searchQuery.value = query;
-    searchResults.value = query.trim() ? searchIndex.search(query) : [];
+    if (searchDebounceHandle !== null) {
+      clearTimeout(searchDebounceHandle);
+    }
+    if (!query.trim()) {
+      searchRunToken += 1;
+      searchResults.value = [];
+      return;
+    }
+    searchDebounceHandle = setTimeout(() => {
+      searchDebounceHandle = null;
+      void runSearchQuery();
+    }, 200);
   }
 
   /** The All / Existing / Deleted toggle simply re-runs the summary list query with a different status filter. */
@@ -792,16 +844,15 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     hasSearchIndex,
     searchQuery,
     searchResults,
-    indexCursor,
-    indexStats,
     canSaveCurrentDocument,
     canPreviewAttachment,
     startCreateDocument,
     selectDocument,
     refreshDocuments,
     resetSearchIndexState,
-    createSearchIndex,
-    syncSearchIndex,
+    refreshSearchSetup,
+    enableSearchIndex,
+    disableSearchIndex,
     setSearchQuery,
     setDocumentListMode,
     saveDocument,
