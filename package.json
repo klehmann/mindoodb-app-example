@@ -6,7 +6,7 @@
     "node": ">=22.13.0"
   },
   "description": "Sample MindooDB Haven demo app showcasing the MindooDB App SDK",
-  "license": "ISC",
+  "license": "Apache-2.0",
   "author": "Mindoo GmbH",
   "type": "module",
   "main": "./src/main.ts",

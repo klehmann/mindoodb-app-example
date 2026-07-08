@@ -145,3 +145,8 @@ pnpm test
 ```
 
 For guidance on testing your own MindooDB apps, see the [SDK testing documentation](https://github.com/klehmann/mindoodb-app-sdk/blob/main/TESTING.md).
+
+## License
+
+Licensed under the [Apache License, Version 2.0](./LICENSE). Copyright 2026
+Mindoo GmbH.
