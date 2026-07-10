@@ -292,7 +292,7 @@ function formatValue(value: unknown) {
 }
 
 .view-layout {
-  grid-template-columns: minmax(20rem, 24rem) minmax(0, 1fr);
+  grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
 }
 
 .definition-copy,
@@ -328,6 +328,19 @@ function formatValue(value: unknown) {
 .metadata-card {
   display: grid;
   gap: 0.25rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.metadata-card strong,
+.metadata-card span,
+.source-item strong,
+.source-item span,
+.current-entry-values__item strong,
+.view-grid > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .panel--result {
@@ -360,7 +373,7 @@ function formatValue(value: unknown) {
 }
 
 .current-entry-values {
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
 }
 
 .current-entry-values__item {
@@ -374,7 +387,7 @@ function formatValue(value: unknown) {
 
 .view-grid {
   display: grid;
-  grid-template-columns: minmax(12rem, 1.2fr) repeat(auto-fit, minmax(10rem, 1fr));
+  grid-template-columns: minmax(10rem, 1.2fr) repeat(auto-fit, minmax(8rem, 1fr));
   gap: 0.75rem;
   padding: 0.85rem 1rem;
   border: 1px solid var(--border);
@@ -418,6 +431,11 @@ function formatValue(value: unknown) {
   min-width: 0;
 }
 
+.outline-entry > span:not(.category-toggle__sign) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .category-toggle__sign {
   display: inline-flex;
   width: 0.75rem;
@@ -434,13 +452,37 @@ function formatValue(value: unknown) {
   color: var(--muted);
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1120px) {
   .view-layout {
     grid-template-columns: 1fr;
   }
+}
 
+@media (max-width: 980px) {
   .metadata-grid--entry {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .section-toolbar,
+  .panel__header,
+  .source-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .panel__actions {
+    flex-wrap: wrap;
+  }
+
+  .metadata-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .view-grid,
+  .view-grid--header {
+    grid-template-columns: 1fr;
   }
 }
 </style>
