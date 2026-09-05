@@ -1,0 +1,15 @@
+# Hosted-bundle installation from MindooDB Haven.
+#
+# Haven fetches these two files cross-origin to install and update this app as a
+# hosted bundle. Without CORS the fetch fails from pages.dev / local Haven.
+#
+# `*` rather than an origin allowlist: Cloudflare's static `_headers` can only emit
+# one fixed value, and browsers reject multi-valued `Access-Control-Allow-Origin`.
+
+/haven-bundle.json
+  Access-Control-Allow-Origin: *
+  Cache-Control: no-cache
+
+/haven-bundle.zip
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300

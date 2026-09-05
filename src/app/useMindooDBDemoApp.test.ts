@@ -74,6 +74,7 @@ describe("useMindooDBDemoApp", () => {
         },
         uiPreferences: {
           iosMultitaskingOptimized: false,
+          reduceMotion: false,
         },
       },
       databases: [
@@ -155,6 +156,7 @@ describe("useMindooDBDemoApp", () => {
     });
     bridgeController.emitUiPreferencesChange({
       iosMultitaskingOptimized: true,
+      reduceMotion: false,
     });
 
     expect(app.hostTheme.value.mode).toBe("light");

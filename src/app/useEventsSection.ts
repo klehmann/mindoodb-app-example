@@ -55,6 +55,7 @@ export function useEventsSection() {
   const hostViewport = ref<MindooDBAppViewport | null>(null);
   const hostUiPreferences = ref<MindooDBAppUiPreferences>({
     iosMultitaskingOptimized: false,
+    reduceMotion: false,
   });
   const eventLog = ref<DemoEventEntry[]>([]);
 
@@ -135,6 +136,7 @@ export function useEventsSection() {
     hostViewport.value = null;
     hostUiPreferences.value = {
       iosMultitaskingOptimized: false,
+      reduceMotion: false,
     };
   }
 
