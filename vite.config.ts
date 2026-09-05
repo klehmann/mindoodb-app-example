@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
+import { havenBundle } from "mindoodb-app-sdk/vite";
 import wasm from "vite-plugin-wasm";
 
 function createResolveAliases() {
@@ -12,6 +13,7 @@ function createResolveAliases() {
     aliases["mindoodb/browser"] = fileURLToPath(new URL("../mindoodb/src/browser/index.ts", import.meta.url));
     aliases["mindoodb/core"] = fileURLToPath(new URL("../mindoodb/src/core/index.ts", import.meta.url));
     aliases.mindoodb = fileURLToPath(new URL("../mindoodb/src/core/index.ts", import.meta.url));
+    aliases["mindoodb-app-sdk/vite"] = fileURLToPath(new URL("../mindoodb-app-sdk/src/vite/index.ts", import.meta.url));
     aliases["mindoodb-app-sdk"] = fileURLToPath(new URL("../mindoodb-app-sdk/src/index.ts", import.meta.url));
     aliases["mindoodb-view-language"] = fileURLToPath(new URL("../mindoodb-view-language/src/index.ts", import.meta.url));
   }
@@ -20,7 +22,10 @@ function createResolveAliases() {
 }
 
 export default defineConfig({
-  plugins: [wasm(), vue()],
+  // Relative asset URLs so the same build works from the app origin and from
+  // Haven's `/__mindoodb_hosted_apps__/<bundleId>/` prefix.
+  base: "./",
+  plugins: [wasm(), vue(), havenBundle()],
   resolve: {
     alias: createResolveAliases(),
   },

@@ -164,6 +164,7 @@ describe("useMindooDBDemoApp", () => {
     });
     expect(app.hostUiPreferences.value).toEqual({
       iosMultitaskingOptimized: true,
+      reduceMotion: false,
     });
     expect(app.eventLog.value[0]?.kind).toBe("ui-preferences-changed");
     expect(app.eventLog.value[1]?.kind).toBe("viewport-changed");
