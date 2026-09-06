@@ -12,9 +12,13 @@
  *   means the browser or Haven refused; `escaped` means the app got out and the
  *   isolation model has a hole.
  * - **External mode is expected to fail almost all of them.** External apps run
- *   on their own origin with `allow-same-origin`, outside Haven's policy. That
- *   is why external mode is restricted to loopback dev servers — these results
- *   are the argument for that rule, not a bug report.
+ *   outside every policy Haven can apply, so these results are the argument for
+ *   keeping external mode to loopback dev servers, not a bug report.
+ * - **Storage and the wrapper DOM are not breakouts.** Each hosted app has an
+ *   origin of its own, so it has real storage and a readable wrapper parent —
+ *   both scoped to that origin and reaching nothing else. Probes that once
+ *   treated a working origin as an escape were written for the old model where
+ *   apps shared Haven's origin.
  *
  * @module isolationProbes
  */
@@ -41,8 +45,8 @@ export type IsolationProbeId =
   | "nested-iframe"
   | "popup"
   | "form-action"
-  | "parent-dom"
-  | "opaque-storage"
+  | "haven-dom"
+  | "app-storage"
   | "service-worker"
   | "cross-bundle-fetch"
   | "haven-page-fetch"
@@ -63,6 +67,13 @@ export interface IsolationProbe {
    * are kept out of "run all" so one click cannot destroy the demo.
    */
   endsSession?: boolean;
+  /**
+   * True when the probe genuinely sends packets to a third party rather than
+   * only attempting to. Still listed and runnable on its own, but kept out of
+   * "run all": a batch button should not reach out to someone else's server
+   * without the person pressing it having chosen that specific probe.
+   */
+  sendsRealTraffic?: boolean;
 }
 
 export interface IsolationProbeResult {
@@ -125,24 +136,25 @@ export const ISOLATION_PROBES: IsolationProbe[] = [
     hostedExpectation: "Blocked. A form post is egress like any other request.",
   },
   {
-    id: "parent-dom",
+    id: "haven-dom",
     label: "Read Haven's DOM and URL",
-    layer: "Opaque origin",
-    hostedExpectation: "Throws. No parent DOM, no Haven URL, no other app's frame.",
+    layer: "Separate origin",
+    hostedExpectation:
+      "Throws. Haven is `window.top` and a different origin, so its document, URL and globals are unreachable. The wrapper at `window.parent` stays readable — it is same-origin by design and holds nothing but this app's frame.",
   },
   {
-    id: "opaque-storage",
+    id: "app-storage",
     label: "Read localStorage",
-    layer: "Opaque origin",
+    layer: "Separate origin",
     hostedExpectation:
-      "Throws. An opaque origin has no storage bucket at all, which is why the SDK offers a Haven-backed storage shim for hosted apps.",
+      "Succeeds, and that is correct. The app has a real origin of its own, so it gets a real storage bucket — one that is empty on first launch and invisible to Haven and to every other app.",
   },
   {
     id: "service-worker",
     label: "Register a service worker",
-    layer: "Opaque origin",
+    layer: "Separate origin",
     hostedExpectation:
-      "Rejects. The app cannot install a worker of its own to intercept its traffic.",
+      "Expected to succeed, and that is the point: nothing stops an app from registering a worker inside its own bundle scope. It reaches no other app and not Haven, but it would sit between the app and the runner's worker. The probe unregisters it again at once.",
   },
   {
     id: "cross-bundle-fetch",
@@ -159,10 +171,11 @@ export const ISOLATION_PROBES: IsolationProbe[] = [
   },
   {
     id: "webrtc",
-    label: "Open an RTCPeerConnection",
-    layer: "Not covered by CSP",
+    label: "Reach an ICE server over WebRTC",
+    layer: "Not covered by CSP or the service worker",
     hostedExpectation:
-      "Succeeds, and that is the honest answer. CSP has no directive for WebRTC, so it stays on the residual-risk list rather than being contained.",
+      "Escapes, and that is the honest answer. ICE traffic is not a fetch, so the service worker never sees it, and no CSP directive constrains iceServers. Sends real packets to a third-party STUN server, so it is left out of the batch run.",
+    sendsRealTraffic: true,
   },
 ];
 
@@ -178,9 +191,29 @@ export function safeProbes(): IsolationProbe[] {
   return ISOLATION_PROBES.filter((probe) => !probe.endsSession);
 }
 
+/**
+ * What "run all" actually runs. Narrower than {@link safeProbes}, which is the
+ * *rendered* list — a probe that reaches a third-party server stays visible and
+ * individually runnable, it just is not swept up by the batch button.
+ */
+export function batchProbes(): IsolationProbe[] {
+  return safeProbes().filter((probe) => !probe.sendsRealTraffic);
+}
+
 export function sessionEndingProbes(): IsolationProbe[] {
   return ISOLATION_PROBES.filter((probe) => probe.endsSession);
 }
+
+/**
+ * STUN server the WebRTC probe points at. Any host off the app's allowlist
+ * would do; a public STUN server is used because it answers reliably and costs
+ * nobody anything. A hostile app would put its own TURN server here instead,
+ * which relays payload rather than just reflecting an address back.
+ */
+const WEBRTC_PROBE_STUN_URL = "stun:stun.l.google.com:19302";
+
+/** How long to wait for ICE gathering before calling the result unclear. */
+const WEBRTC_PROBE_TIMEOUT_MS = 5_000;
 
 /**
  * The URL a breakout would exfiltrate to. The marker stands in for whatever the
@@ -291,6 +324,47 @@ function inspectFrameNavigation(frame: HTMLIFrameElement): {
       detail: `The frame loaded a cross-origin document (${formatProbeError(error)}).`,
     };
   }
+}
+
+/**
+ * Resolves with the type of the first candidate that could only exist if the
+ * STUN/TURN server answered ("srflx" or "relay"), or null if gathering finishes
+ * or times out with nothing but local candidates.
+ *
+ * Host candidates prove nothing — the browser makes those up from local
+ * interfaces without sending a packet. A server-reflexive one is the evidence:
+ * the address in it came back *from* the server.
+ */
+function waitForReflexiveCandidate(connection: RTCPeerConnection): Promise<string | null> {
+  return new Promise((resolve) => {
+    const finish = (type: string | null) => {
+      clearTimeout(timer);
+      connection.removeEventListener("icecandidate", onCandidate);
+      resolve(type);
+    };
+    const onCandidate = (event: RTCPeerConnectionIceEvent) => {
+      // A null candidate marks the end of gathering.
+      if (!event.candidate) {
+        finish(null);
+        return;
+      }
+      const type = reflexiveCandidateType(event.candidate);
+      if (type) {
+        finish(type);
+      }
+    };
+    const timer = setTimeout(() => finish(null), WEBRTC_PROBE_TIMEOUT_MS);
+    connection.addEventListener("icecandidate", onCandidate);
+  });
+}
+
+/**
+ * `RTCIceCandidate.type` is unset in some engines, so fall back to the SDP
+ * attribute, where the type follows the literal "typ" token.
+ */
+function reflexiveCandidateType(candidate: RTCIceCandidate): string | null {
+  const type = candidate.type ?? /\btyp\s+(\w+)/.exec(candidate.candidate)?.[1] ?? null;
+  return type === "srflx" || type === "relay" ? type : null;
 }
 
 async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeResult, "elapsedMs">> {
@@ -437,31 +511,59 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
       }
     }
 
-    case "parent-dom": {
+    case "haven-dom": {
+      // Reach for Haven, which is `window.top`. `window.parent` is the
+      // containment wrapper, and that one is same-origin with the app on
+      // purpose: it has to be served from the app origin to carry a `frame-src`
+      // about that origin's paths. Reading it proves nothing — it holds a
+      // single iframe and no data — so probing it would report a break-in to a
+      // room the app already owns.
+      if (window.top === window.self) {
+        return {
+          id,
+          outcome: "inconclusive",
+          detail:
+            "This document is not framed, so there is no Haven window to reach. Run the probe in embedded mode.",
+        };
+      }
+      let wrapperNote = "";
       try {
-        const title = window.parent.document.title;
+        wrapperNote = ` The wrapper at window.parent stays readable ("${window.parent.document.title}"), which is by design.`;
+      } catch {
+        // External mode frames the app directly, so there is no wrapper.
+      }
+      try {
+        const title = window.top?.document.title;
         return {
           id,
           outcome: "escaped",
-          detail: `Read the parent document. Its title is "${title}".`,
+          detail: `Read Haven's own document. Its title is "${title}".`,
         };
       } catch (error) {
-        return { id, outcome: "contained", detail: formatProbeError(error) };
+        return { id, outcome: "contained", detail: `${formatProbeError(error)}${wrapperNote}` };
       }
     }
 
-    case "opaque-storage": {
+    case "app-storage": {
+      // Working storage is not a breakout. Each app runs on its own origin, so
+      // the bucket it reaches belongs to that origin — never Haven's, never
+      // another app's. The browser's same-origin policy is what guarantees it,
+      // which is why there is nothing here for the app to defeat.
       try {
         const probeKey = "mindoodb-breakout-probe";
         window.localStorage.setItem(probeKey, "1");
         window.localStorage.removeItem(probeKey);
         return {
           id,
-          outcome: "escaped",
-          detail: "localStorage is readable and writable, so this document has a real origin.",
+          outcome: "contained",
+          detail: `localStorage works and is scoped to ${window.location.origin}, this app's own origin. Haven's storage and every other app's sit on different origins and stay unreachable.`,
         };
       } catch (error) {
-        return { id, outcome: "contained", detail: formatProbeError(error) };
+        return {
+          id,
+          outcome: "inconclusive",
+          detail: `${formatProbeError(error)} An app origin is supposed to have a storage bucket, so this points at a launch problem rather than at containment.`,
+        };
       }
     }
 
@@ -473,25 +575,28 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
           detail: "navigator.serviceWorker is not available in this document.",
         };
       }
+      let registration: ServiceWorkerRegistration;
       try {
-        await navigator.serviceWorker.register("./breakout-sw.js");
+        registration = await navigator.serviceWorker.register("./breakout-sw.js");
+      } catch (error) {
+        return { id, outcome: "contained", detail: formatProbeError(error) };
+      }
+      // Registering at all is the finding, so undo it straight away. Left in
+      // place this worker would control the app on its next load, and the demo
+      // would run hijacked from then on — see `public/breakout-sw.js`.
+      try {
         return {
           id,
           outcome: "escaped",
-          detail: "Registered a service worker of the app's own.",
+          detail:
+            `Registered a worker of the app's own, scoped to ${registration.scope}. `
+            + "It does not claim the open page, so nothing breaks right now, and the probe "
+            + "unregisters it again immediately. On the next load it would control the app "
+            + "and see every request it makes — whether its own fetches would then bypass "
+            + "the runner's allowlist is a separate question this probe does not answer.",
         };
-      } catch (error) {
-        // An opaque origin rejects with SecurityError before it ever fetches
-        // the script. Any other rejection just means the script is missing —
-        // this bundle ships no such file — which proves nothing either way.
-        const blockedByOrigin = error instanceof DOMException && error.name === "SecurityError";
-        return {
-          id,
-          outcome: blockedByOrigin ? "contained" : "inconclusive",
-          detail: blockedByOrigin
-            ? formatProbeError(error)
-            : `${formatProbeError(error)} — this looks like the missing probe script rather than the origin refusing registration.`,
-        };
+      } finally {
+        await registration.unregister();
       }
     }
 
@@ -530,14 +635,25 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
           detail: "RTCPeerConnection is not available in this document.",
         };
       }
-      const connection = new RTCPeerConnection();
+      const connection = new RTCPeerConnection({
+        iceServers: [{ urls: WEBRTC_PROBE_STUN_URL }],
+      });
       try {
         connection.createDataChannel("probe");
-        const offer = await connection.createOffer();
+        const reflexive = waitForReflexiveCandidate(connection);
+        await connection.setLocalDescription(await connection.createOffer());
+        const candidateType = await reflexive;
+        if (candidateType) {
+          return {
+            id,
+            outcome: "escaped",
+            detail: `Gathered a "${candidateType}" ICE candidate from ${WEBRTC_PROBE_STUN_URL}. That host is on no allowlist, and the round trip succeeded: the app sent packets to a server of its choosing and got an answer. The service worker never saw it, because ICE is not a fetch. The reflected address is withheld here — it is your public IP.`,
+          };
+        }
         return {
           id,
           outcome: "inconclusive",
-          detail: `Created a peer connection and an SDP offer (${offer.type}). No CSP directive covers this; reaching a peer still needs signalling, which does go through the allowlist.`,
+          detail: `No server-reflexive candidate within ${WEBRTC_PROBE_TIMEOUT_MS} ms. That is usually the local network dropping UDP, not Haven containing anything — nothing here shows the channel is closed.`,
         };
       } catch (error) {
         return { id, outcome: "contained", detail: formatProbeError(error) };

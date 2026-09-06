@@ -11,6 +11,7 @@ import {
   type IsolationProbeId,
   type IsolationProbeResult,
   runIsolationProbe,
+  batchProbes,
   safeProbes,
   sessionEndingProbes,
   summarizeIsolationResults,
@@ -24,6 +25,7 @@ interface RecordedViolation {
 
 const hosting = currentHostingMode();
 const safe = safeProbes();
+const batch = batchProbes();
 const destructive = sessionEndingProbes();
 
 const results = ref<Map<IsolationProbeId, IsolationProbeResult>>(new Map());
@@ -72,7 +74,7 @@ async function run(probe: IsolationProbe) {
 async function runSafe() {
   runningAll.value = true;
   try {
-    for (const probe of safe) {
+    for (const probe of batch) {
       await run(probe);
     }
   } finally {
@@ -120,6 +122,11 @@ function outcomeLabel(outcome: IsolationProbeResult["outcome"]) {
         hosts an app may call — this tab asks whether it can leave at all.
       </p>
 
+      <p class="panel__copy">
+        Probes marked <em>run it yourself</em> are skipped by the batch button because they send
+        real packets to a third party. Start those individually, when you mean to.
+      </p>
+
       <Message v-if="hosting === 'external'" severity="warn" :closable="false">
         This app is running in external mode, on its own origin, with none of Haven's containment
         applied. Expect nearly everything here to escape. That is exactly why external mode is
@@ -159,7 +166,15 @@ function outcomeLabel(outcome: IsolationProbeResult["outcome"]) {
         <li v-for="probe in safe" :key="probe.id" class="probe">
           <div class="probe__head">
             <div>
-              <p class="probe__label">{{ probe.label }}</p>
+              <p class="probe__label">
+                {{ probe.label }}
+                <Tag
+                  v-if="probe.sendsRealTraffic"
+                  value="run it yourself"
+                  severity="warn"
+                  rounded
+                />
+              </p>
               <p class="probe__layer">{{ probe.layer }}</p>
             </div>
             <div class="probe__actions">

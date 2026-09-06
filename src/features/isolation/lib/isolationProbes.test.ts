@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
   BREAKOUT_ORIGIN,
@@ -9,11 +9,54 @@ import {
   ISOLATION_PROBES,
   isolationProbe,
   OTHER_BUNDLE_ID,
+  batchProbes,
+  runIsolationProbe,
   safeProbes,
   sessionEndingProbes,
   summarizeIsolationResults,
   type IsolationProbeResult,
 } from "@/features/isolation/lib/isolationProbes";
+
+/**
+ * Minimal RTCPeerConnection stand-in — jsdom has none. Emits the given candidate
+ * strings as soon as the offer is applied; a null entry is the end-of-gathering
+ * signal the browser sends, and without one the probe would sit out its timeout.
+ */
+function stubPeerConnection(candidates: (string | null)[]) {
+  const listeners = new Set<(event: { candidate: unknown }) => void>();
+  const connection = {
+    createDataChannel: vi.fn(),
+    createOffer: vi.fn().mockResolvedValue({ type: "offer", sdp: "" }),
+    close: vi.fn(),
+    addEventListener: vi.fn((_type: string, listener: (event: { candidate: unknown }) => void) => {
+      listeners.add(listener);
+    }),
+    removeEventListener: vi.fn(
+      (_type: string, listener: (event: { candidate: unknown }) => void) => {
+        listeners.delete(listener);
+      },
+    ),
+    setLocalDescription: vi.fn(async () => {
+      for (const candidate of candidates) {
+        for (const listener of [...listeners]) {
+          // `type` left undefined on purpose: exercises the SDP-string fallback.
+          listener({ candidate: candidate === null ? null : { candidate } });
+        }
+      }
+    }),
+  };
+  // A plain function, not an arrow: the probe calls this with `new`.
+  vi.stubGlobal(
+    "RTCPeerConnection",
+    vi.fn(function () {
+      return connection;
+    }),
+  );
+  onTestFinished(() => {
+    vi.unstubAllGlobals();
+  });
+  return connection;
+}
 
 function result(
   id: IsolationProbeResult["id"],
@@ -52,6 +95,17 @@ describe("isolation probes", () => {
     ]);
   });
 
+  it("keeps traffic-sending probes listed but out of the batch run", () => {
+    const safe = safeProbes();
+    const batch = batchProbes();
+
+    // Still rendered and runnable on its own...
+    expect(safe.map((probe) => probe.id)).toContain("webrtc");
+    // ...but one click on "run all" must not reach a third-party server.
+    expect(batch.map((probe) => probe.id)).not.toContain("webrtc");
+    expect(batch.every((probe) => !probe.sendsRealTraffic)).toBe(true);
+  });
+
   it("tells the truth about external mode instead of promising containment", () => {
     const probe = isolationProbe("self-navigation");
 
@@ -59,13 +113,37 @@ describe("isolation probes", () => {
     expect(describeExpectation(probe, "external")).toContain("expect this to succeed");
   });
 
+  it("reports an escape once the STUN server reflects an address back", async () => {
+    const connection = stubPeerConnection([
+      "candidate:1 1 udp 1686052607 203.0.113.7 54321 typ srflx raddr 0.0.0.0 rport 0",
+    ]);
+
+    const result = await runIsolationProbe("webrtc");
+
+    expect(result.outcome).toBe("escaped");
+    expect(result.detail).toContain("srflx");
+    // The reflected address is the caller's public IP — never put it on screen.
+    expect(result.detail).not.toContain("203.0.113.7");
+    expect(connection.close).toHaveBeenCalled();
+  });
+
+  it("stays unclear when only local candidates turn up", async () => {
+    // Host candidates are invented locally, so they prove no packet went out.
+    stubPeerConnection(["candidate:2 1 udp 2130706431 192.168.1.4 49152 typ host", null]);
+
+    const result = await runIsolationProbe("webrtc");
+
+    expect(result.outcome).toBe("inconclusive");
+    expect(result.detail).toContain("not Haven containing anything");
+  });
+
   it("counts outcomes for the summary badge", () => {
     expect(
       summarizeIsolationResults([
         result("popup", "contained"),
-        result("parent-dom", "contained"),
+        result("haven-dom", "contained"),
         result("webrtc", "inconclusive"),
-        result("opaque-storage", "escaped"),
+        result("app-storage", "escaped"),
       ]),
     ).toEqual({ contained: 2, escaped: 1, inconclusive: 1 });
   });
