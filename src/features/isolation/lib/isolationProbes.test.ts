@@ -167,6 +167,45 @@ describe("isolation probes", () => {
     expect(document.head.querySelectorAll("link[rel='preconnect']")).toHaveLength(0);
   });
 
+  it("names the directive that refused a framed navigation", async () => {
+    const pending = runIsolationProbe("form-action");
+    // The browser fires this while the probe waits for the frame to settle.
+    setTimeout(() => {
+      const event = new Event("securitypolicyviolation");
+      Object.assign(event, {
+        blockedURI: `${BREAKOUT_ORIGIN}/get`,
+        violatedDirective: "form-action",
+      });
+      document.dispatchEvent(event);
+    }, 10);
+
+    const result = await pending;
+
+    expect(result.outcome).toBe("contained");
+    expect(result.detail).toContain("Refused by form-action");
+  });
+
+  it("ignores a violation raised for some other host", async () => {
+    const pending = runIsolationProbe("nested-iframe");
+    setTimeout(() => {
+      const event = new Event("securitypolicyviolation");
+      Object.assign(event, {
+        blockedURI: "https://unrelated.example/asset.js",
+        violatedDirective: "script-src",
+      });
+      document.dispatchEvent(event);
+    }, 10);
+
+    const result = await pending;
+
+    // The violation names a different host, so it must not be read as this
+    // probe being refused. jsdom enforces no CSP, so the frame does move and
+    // the fallback reports the escape — with the note that nothing refused it.
+    expect(result.detail).not.toContain("Refused by");
+    expect(result.outcome).toBe("escaped");
+    expect(result.detail).toContain("No CSP violation fired");
+  });
+
   it("counts outcomes for the summary badge", () => {
     expect(
       summarizeIsolationResults([

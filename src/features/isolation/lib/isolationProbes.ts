@@ -134,7 +134,8 @@ export const ISOLATION_PROBES: IsolationProbe[] = [
     id: "form-action",
     label: "Submit a form to httpbin",
     layer: "App CSP, form-action",
-    hostedExpectation: "Blocked. A form post is egress like any other request.",
+    hostedExpectation:
+      "Blocked, by `form-action` or by `frame-src` on the frame the post targets. A form post is egress like any other request. The result names whichever directive refused; if none did and the frame still holds a foreign document, that is a real hole.",
   },
   {
     id: "haven-dom",
@@ -328,6 +329,55 @@ async function attemptNavigation(navigate: () => void): Promise<IsolationProbeRe
  * frame CSP refused stays on `about:blank`, which an opaque-origin parent may
  * still read, while a frame that really loaded httpbin throws on the same read.
  */
+/**
+ * Runs a frame navigation attempt and judges it, preferring the CSP violation
+ * event over what the frame looks like afterwards.
+ *
+ * Reading the frame is a poor primary signal. A refusal can leave the frame on
+ * a browser error document, and that document is cross-origin too — so the read
+ * throws exactly like it would if the target really had loaded. The violation
+ * event does not have that ambiguity: it fires only when a directive refused,
+ * and it names which one.
+ */
+async function judgeFrameNavigation(options: {
+  frame: HTMLIFrameElement;
+  target: string;
+  attempt: () => void;
+  settleMs: number;
+}): Promise<{ outcome: IsolationOutcome; detail: string }> {
+  const host = new URL(options.target).host;
+  const refusals: string[] = [];
+  const onViolation = (event: SecurityPolicyViolationEvent) => {
+    if (!event.blockedURI.includes(host)) {
+      return;
+    }
+    refusals.push(event.violatedDirective || "an unnamed directive");
+  };
+
+  document.addEventListener("securitypolicyviolation", onViolation);
+  try {
+    options.attempt();
+    await delay(options.settleMs);
+  } finally {
+    document.removeEventListener("securitypolicyviolation", onViolation);
+  }
+
+  if (refusals.length) {
+    return {
+      outcome: "contained",
+      detail: `Refused by ${[...new Set(refusals)].join(" and ")}.`,
+    };
+  }
+  const inspection = inspectFrameNavigation(options.frame);
+  if (inspection.outcome === "contained") {
+    return inspection;
+  }
+  return {
+    outcome: inspection.outcome,
+    detail: `${inspection.detail} No CSP violation fired, so nothing refused this.`,
+  };
+}
+
 function inspectFrameNavigation(frame: HTMLIFrameElement): {
   outcome: IsolationOutcome;
   detail: string;
@@ -508,15 +558,20 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
       const frame = document.createElement("iframe");
       frame.setAttribute("aria-hidden", "true");
       frame.style.display = "none";
-      frame.src = target;
       document.body.appendChild(frame);
-      await delay(1200);
-      const inspection = inspectFrameNavigation(frame);
+      const verdict = await judgeFrameNavigation({
+        frame,
+        target,
+        attempt: () => {
+          frame.src = target;
+        },
+        settleMs: 1200,
+      });
       frame.remove();
       return {
         id,
-        outcome: inspection.outcome,
-        detail: `Requested ${target} in a nested iframe. ${inspection.detail}`,
+        outcome: verdict.outcome,
+        detail: `Requested ${target} in a nested iframe. ${verdict.detail}`,
       };
     }
 
@@ -556,13 +611,18 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
       form.style.display = "none";
       document.body.appendChild(form);
       try {
-        form.submit();
-        await delay(900);
-        const inspection = inspectFrameNavigation(sink);
+        const verdict = await judgeFrameNavigation({
+          frame: sink,
+          target,
+          attempt: () => {
+            form.submit();
+          },
+          settleMs: 900,
+        });
         return {
           id,
-          outcome: inspection.outcome,
-          detail: `Submitted to ${target} into a hidden frame. ${inspection.detail}`,
+          outcome: verdict.outcome,
+          detail: `Submitted to ${target} into a hidden frame. ${verdict.detail}`,
         };
       } catch (error) {
         return { id, outcome: "contained", detail: formatProbeError(error) };
