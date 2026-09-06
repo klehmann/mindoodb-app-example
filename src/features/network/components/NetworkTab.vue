@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import Button from "primevue/button";
 import Tag from "primevue/tag";
 
@@ -15,6 +15,21 @@ const url = ref(NETWORK_PRESET_ALLOWED);
 const method = ref<NetworkProbeMethod>("fetch");
 const busy = ref(false);
 const result = ref<NetworkProbeResult | null>(null);
+const resultPanel = ref<HTMLElement | null>(null);
+
+/**
+ * Three outcomes, not two. A failed `img` probe on a URL that may not be an
+ * image cannot attribute the failure to the allowlist, so it must not be
+ * labelled `blocked` — see `NetworkProbeResult.inconclusive`.
+ */
+const verdict = computed(() => {
+  if (!result.value) return null;
+  if (result.value.ok) return { label: "ok", severity: "success", heading: "Request completed" };
+  if (result.value.inconclusive) {
+    return { label: "unclear", severity: "info", heading: "Result inconclusive" };
+  }
+  return { label: "blocked", severity: "warn", heading: "Request failed" };
+});
 
 const methodOptions: Array<{ id: NetworkProbeMethod; label: string }> = [
   { id: "fetch", label: "fetch" },
@@ -34,6 +49,26 @@ async function runProbe() {
   } finally {
     busy.value = false;
   }
+  await revealResult();
+}
+
+/**
+ * Bring the result panel into view. It sits below the fold on most window
+ * sizes, so without this a blocked request looks like nothing happened at all.
+ *
+ * The panel is `v-if`'d on the result, so it does not exist until Vue has
+ * flushed — hence `nextTick` before reaching for the ref.
+ *
+ * Scrolling stops at this document. The app is framed cross-origin from Haven,
+ * so the browser will not let `scrollIntoView` walk into the host page.
+ */
+async function revealResult() {
+  await nextTick();
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  resultPanel.value?.scrollIntoView({
+    behavior: reduced ? "auto" : "smooth",
+    block: "nearest",
+  });
 }
 </script>
 
@@ -91,13 +126,13 @@ async function runProbe() {
       <Button label="Send request" icon="pi pi-send" :loading="busy" :disabled="busy" @click="runProbe" />
     </section>
 
-    <section v-if="result" class="glass-card panel">
+    <section v-if="result" ref="resultPanel" class="glass-card panel">
       <div class="panel__header">
         <div>
           <p class="panel__eyebrow">Result</p>
-          <h3>{{ result.ok ? "Request completed" : "Request failed" }}</h3>
+          <h3>{{ verdict?.heading }}</h3>
         </div>
-        <Tag :value="result.ok ? 'ok' : 'blocked'" :severity="result.ok ? 'success' : 'warn'" rounded />
+        <Tag :value="verdict?.label" :severity="verdict?.severity" rounded />
       </div>
       <dl class="result-meta">
         <div>

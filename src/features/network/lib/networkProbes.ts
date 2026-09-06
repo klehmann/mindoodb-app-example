@@ -12,6 +12,15 @@ export interface NetworkProbeResult {
   bodyText: string;
   imageUrl: string | null;
   error: string | null;
+  /**
+   * The probe failed but cannot say whether the allowlist caused it.
+   *
+   * An `<img>` reports one undifferentiated `error` event, so "the host is not
+   * allowlisted" and "the bytes are not an image" look identical from here.
+   * Claiming `blocked` in that case would make the demo assert containment it
+   * did not observe.
+   */
+  inconclusive?: boolean;
 }
 
 export function resolveProbeUrl(url: string, method: NetworkProbeMethod): string {
@@ -94,7 +103,11 @@ export function probeWithXhr(url: string): Promise<NetworkProbeResult> {
   });
 }
 
-export function probeWithImage(url: string): Promise<NetworkProbeResult> {
+/**
+ * @param knownImage Whether this URL is known to serve image bytes. Only then
+ *   does a failure isolate the allowlist as the cause.
+ */
+export function probeWithImage(url: string, knownImage = false): Promise<NetworkProbeResult> {
   const startedAt = performance.now();
   return new Promise((resolve) => {
     const image = new Image();
@@ -115,7 +128,13 @@ export function probeWithImage(url: string): Promise<NetworkProbeResult> {
         elapsedMs: elapsedSince(startedAt),
         bodyText: "",
         imageUrl: null,
-        error: "Image failed to load",
+        error: knownImage
+          ? "Image failed to load"
+          : "Image failed to load — but this URL is not known to serve an image. "
+            + "An <img> renders image bytes and nothing else, so a JSON or HTML "
+            + "endpoint fails here even when the allowlist permits it. Send the "
+            + "same URL with fetch to tell the two apart.",
+        inconclusive: !knownImage,
       });
     });
     image.referrerPolicy = "no-referrer";
@@ -142,7 +161,7 @@ export async function runNetworkProbe(
     return probeWithXhr(resolved);
   }
   if (method === "img") {
-    return probeWithImage(resolved);
+    return probeWithImage(resolved, resolved === NETWORK_PRESET_BLOCKED_IMAGE);
   }
   return probeWithFetch(resolved);
 }

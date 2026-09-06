@@ -16,7 +16,8 @@
     "build": "vue-tsc --noEmit && vite build",
     "build:local": "LOCAL_MINDOODB=1 vite build",
     "deploy": "npm run build && wrangler deploy",
-    "preview": "npm run build && wrangler dev",
+    "preview": "npm run build && wrangler dev --port 4200",
+    "preview:local": "npm run build:local && wrangler dev --port 4200",
     "test": "vitest run",
     "test:watch": "vitest"
   },

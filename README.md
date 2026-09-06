@@ -79,7 +79,28 @@ To build your own app, **fork or duplicate** this project. You can develop live 
 | `pnpm test` | Run tests with Vitest |
 | `pnpm test:watch` | Run tests in watch mode |
 | `pnpm deploy` | Build and deploy to Cloudflare Workers |
-| `pnpm preview` | Build and preview with local Wrangler dev server |
+| `pnpm preview` | Build and serve `dist/` with Wrangler (port 4200) |
+| `pnpm preview:local` | Same, built with local SDK resolution |
+
+### Hosted mode needs `preview`, not `dev`
+
+Registering this app in Haven as a **hosted bundle** means Haven fetches
+`/haven-bundle.json` and `/haven-bundle.zip` from the URL you give it. Both are
+produced by `vite build` into `dist/`, so the Vite dev server does not have
+them — it answers those paths with `index.html`, and Haven reports
+`did not return JSON: Unexpected token '<'`.
+
+The CORS headers those two files need also live in `public/_headers`, which is a
+Cloudflare format that Vite ignores entirely. So the dev server cannot serve a
+hosted bundle even once the files exist.
+
+Use `pnpm preview:local` (or `pnpm preview`) instead. It serves the built
+`dist/` through Wrangler on the same port 4200, with `_headers` applied and a
+real 404 for unknown paths. Note that it is a build, not a watch: re-run it
+after changing the source.
+
+`pnpm dev` remains the right choice for **external** mode, where Haven just
+frames the URL and never fetches a bundle.
 
 ## Deployment to Cloudflare
 
@@ -93,10 +114,15 @@ The configuration lives in `wrangler.jsonc`:
   "compatibility_date": "2026-04-09",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "404-page"
   }
 }
 ```
+
+`404-page` rather than `single-page-application`: an SPA fallback answers an
+unpublished hashed asset with `index.html` under a cacheable `200`, which stores
+HTML at a `.js` address in browser and edge caches. This app has no client-side
+routes, so it needs no fallback. See `public/404.html`.
 
 To deploy your own instance:
 
@@ -104,11 +130,14 @@ To deploy your own instance:
 pnpm deploy
 ```
 
-This runs `vue-tsc --noEmit && vite build` followed by `wrangler deploy`, which uploads the `dist/` folder as static assets with SPA fallback routing.
+This runs `vue-tsc --noEmit && vite build` followed by `wrangler deploy`, which uploads the `dist/` folder as static assets.
 
 Any static hosting works (Netlify, Vercel, a plain web server), but Cloudflare Workers with static assets is a particularly simple option -- no server configuration, automatic HTTPS, and a generous free tier.
 
-Alternatively, Haven can host app bundles directly via its service worker. Haven-hosted apps load without a network connection and run in a stricter sandbox with an opaque origin.
+Alternatively, Haven can install the app as a hosted bundle. It then downloads
+`haven-bundle.zip` once, keeps it in Cache Storage, and serves it from a service
+worker — so the app starts without a network connection and gets its own browser
+origin, isolated from Haven and from every other installed app.
 
 ## Project structure
 
