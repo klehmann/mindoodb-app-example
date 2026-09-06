@@ -99,10 +99,13 @@ describe("isolation probes", () => {
     const safe = safeProbes();
     const batch = batchProbes();
 
-    // Still rendered and runnable on its own...
-    expect(safe.map((probe) => probe.id)).toContain("webrtc");
+    // Still rendered and runnable on their own...
+    expect(safe.map((probe) => probe.id)).toEqual(
+      expect.arrayContaining(["webrtc", "dns-prefetch"]),
+    );
     // ...but one click on "run all" must not reach a third-party server.
     expect(batch.map((probe) => probe.id)).not.toContain("webrtc");
+    expect(batch.map((probe) => probe.id)).not.toContain("dns-prefetch");
     expect(batch.every((probe) => !probe.sendsRealTraffic)).toBe(true);
   });
 
@@ -135,6 +138,33 @@ describe("isolation probes", () => {
 
     expect(result.outcome).toBe("inconclusive");
     expect(result.detail).toContain("not Haven containing anything");
+  });
+
+  it("names the hostnames to look for when no policy stops a resource hint", async () => {
+    const result = await runIsolationProbe("dns-prefetch");
+
+    // jsdom enforces no CSP, which is the same shape as a browser that has no
+    // directive for resource hints — exactly the case worth reporting on.
+    expect(result.outcome).toBe("inconclusive");
+    expect(result.detail).toContain("dns-prefetch → stolen-");
+    expect(result.detail).toContain("preconnect → stolen-");
+    expect(result.detail).toContain("mindoodb-apprunner.com");
+  });
+
+  it("invents a fresh hostname per run so the DNS cache cannot mask the leak", async () => {
+    const [first, second] = await Promise.all([
+      runIsolationProbe("dns-prefetch"),
+      runIsolationProbe("dns-prefetch"),
+    ]);
+
+    expect(first.detail).not.toBe(second.detail);
+  });
+
+  it("leaves no hint elements behind in the document", async () => {
+    await runIsolationProbe("dns-prefetch");
+
+    expect(document.head.querySelectorAll("link[rel='dns-prefetch']")).toHaveLength(0);
+    expect(document.head.querySelectorAll("link[rel='preconnect']")).toHaveLength(0);
   });
 
   it("counts outcomes for the summary badge", () => {

@@ -50,7 +50,8 @@ export type IsolationProbeId =
   | "service-worker"
   | "cross-bundle-fetch"
   | "haven-page-fetch"
-  | "webrtc";
+  | "webrtc"
+  | "dns-prefetch";
 
 /** `contained` is the desired result for every probe except the WebRTC one. */
 export type IsolationOutcome = "contained" | "escaped" | "inconclusive";
@@ -154,7 +155,7 @@ export const ISOLATION_PROBES: IsolationProbe[] = [
     label: "Register a service worker",
     layer: "Separate origin",
     hostedExpectation:
-      "Expected to succeed, and that is the point: nothing stops an app from registering a worker inside its own bundle scope. It reaches no other app and not Haven, but it would sit between the app and the runner's worker. The probe unregisters it again at once.",
+      "Refused by `worker-src 'none'`, unless the registration has \"Allow workers\" ticked. That switch exists for apps doing real work in a Web Worker — CSP cannot separate the worker kinds, so allowing one allows all three. With it on, expect this to succeed and to report the scope it was given; the probe unregisters the worker again at once either way.",
   },
   {
     id: "cross-bundle-fetch",
@@ -175,6 +176,14 @@ export const ISOLATION_PROBES: IsolationProbe[] = [
     layer: "Not covered by CSP or the service worker",
     hostedExpectation:
       "Escapes, and that is the honest answer. ICE traffic is not a fetch, so the service worker never sees it, and no CSP directive constrains iceServers. Sends real packets to a third-party STUN server, so it is left out of the batch run.",
+    sendsRealTraffic: true,
+  },
+  {
+    id: "dns-prefetch",
+    label: "Leak through a DNS prefetch hint",
+    layer: "Not covered by CSP or the service worker",
+    hostedExpectation:
+      "The hint is accepted: no directive governs resource hints, and a name lookup is not a fetch, so the service worker never sees it. The payload rides in the hostname. Whether the query really left cannot be observed from in here — the probe prints the name so you can look for it in a DNS log.",
     sendsRealTraffic: true,
   },
 ];
@@ -214,6 +223,18 @@ const WEBRTC_PROBE_STUN_URL = "stun:stun.l.google.com:19302";
 
 /** How long to wait for ICE gathering before calling the result unclear. */
 const WEBRTC_PROBE_TIMEOUT_MS = 5_000;
+
+/**
+ * Zone the DNS probe invents a name under. Deliberately the app runner's own
+ * zone: it has a wildcard record, so the name resolves instead of being
+ * short-circuited, and its authoritative DNS is somewhere the operator of this
+ * Haven can actually go and look. A hostile app would use a zone it controls
+ * and read the payload straight out of its query log.
+ */
+const DNS_PROBE_ZONE = "mindoodb-apprunner.com";
+
+/** How long to wait for a CSP violation to arrive before concluding none will. */
+const DNS_PROBE_TIMEOUT_MS = 750;
 
 /**
  * The URL a breakout would exfiltrate to. The marker stands in for whatever the
@@ -324,6 +345,46 @@ function inspectFrameNavigation(frame: HTMLIFrameElement): {
       detail: `The frame loaded a cross-origin document (${formatProbeError(error)}).`,
     };
   }
+}
+
+/**
+ * A label unique per run. Without it the second run would hit the DNS cache and
+ * never leave the machine, which would look like containment.
+ */
+function probeMarker(): string {
+  const random = globalThis.crypto?.randomUUID?.();
+  return (random ?? Math.random().toString(36).slice(2)).replace(/-/g, "").slice(0, 12);
+}
+
+/**
+ * Inserts a resource hint and resolves with the CSP violation it drew, or null
+ * if the policy let it through.
+ *
+ * Only the *policy* decision is observable here. Whether the browser then went
+ * on to resolve the name happens below the JS layer, which is the whole reason
+ * this channel is interesting to an attacker.
+ */
+function insertResourceHint(rel: string, host: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const onViolation = (event: SecurityPolicyViolationEvent) => {
+      if (!event.blockedURI.includes(host)) {
+        return;
+      }
+      finish(event.violatedDirective || "unnamed directive");
+    };
+    const finish = (directive: string | null) => {
+      clearTimeout(timer);
+      document.removeEventListener("securitypolicyviolation", onViolation);
+      link.remove();
+      resolve(directive);
+    };
+    const timer = setTimeout(() => finish(null), DNS_PROBE_TIMEOUT_MS);
+    document.addEventListener("securitypolicyviolation", onViolation);
+    const link = document.createElement("link");
+    link.rel = rel;
+    link.href = `//${host}`;
+    document.head.append(link);
+  });
 }
 
 /**
@@ -660,6 +721,37 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
       } finally {
         connection.close();
       }
+    }
+
+    case "dns-prefetch": {
+      const marker = probeMarker();
+      // Two hints, because they leak differently. `dns-prefetch` gets the name
+      // to a resolver; `preconnect` goes further and completes a TCP and TLS
+      // handshake, putting the name on the wire again in the TLS SNI field.
+      // Either way the payload is the hostname, so neither needs a response.
+      const dnsHost = `stolen-${marker}.${DNS_PROBE_ZONE}`;
+      const preconnectHost = `stolen-${marker}-pre.${DNS_PROBE_ZONE}`;
+      const [dnsBlocked, preconnectBlocked] = await Promise.all([
+        insertResourceHint("dns-prefetch", dnsHost),
+        insertResourceHint("preconnect", preconnectHost),
+      ]);
+
+      if (dnsBlocked && preconnectBlocked) {
+        return {
+          id,
+          outcome: "contained",
+          detail: `Both hints were refused (${dnsBlocked}, ${preconnectBlocked}).`,
+        };
+      }
+      const survived = [
+        dnsBlocked ? null : `dns-prefetch → ${dnsHost}`,
+        preconnectBlocked ? null : `preconnect → ${preconnectHost}`,
+      ].filter((entry): entry is string => entry !== null);
+      return {
+        id,
+        outcome: "inconclusive",
+        detail: `No policy stopped ${survived.join(" and ")}. What that proves is only that nothing refused the hint — a name lookup is invisible from inside the page, so look for these names in a DNS query log to see whether they actually left. A hostile app would put stolen data where "${marker}" sits.`,
+      };
     }
 
     default: {
