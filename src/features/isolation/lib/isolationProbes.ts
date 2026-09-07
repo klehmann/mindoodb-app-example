@@ -174,17 +174,17 @@ export const ISOLATION_PROBES: IsolationProbe[] = [
   {
     id: "webrtc",
     label: "Reach an ICE server over WebRTC",
-    layer: "Not covered by CSP or the service worker",
+    layer: "Connection-Allowlist webrtc=block (Chrome 152+)",
     hostedExpectation:
-      "Escapes, and that is the honest answer. ICE traffic is not a fetch, so the service worker never sees it, and no CSP directive constrains iceServers. Sends real packets to a third-party STUN server, so it is left out of the batch run.",
+      "Contained in Chrome 152 and newer, unless the registration has \"Allow WebRTC\" ticked. 148–151 had the same header only behind an origin-trial token, and WebRTC landed late in that trial. The header is Connection-Allowlist, not CSP — current Chrome ignores the experimental webrtc 'block' directive. Firefox and Safari still have no equivalent, so they keep escaping. Sends real packets when it is not blocked, so it is left out of the batch run.",
     sendsRealTraffic: true,
   },
   {
     id: "dns-prefetch",
     label: "Leak through a DNS prefetch hint",
-    layer: "Not covered by CSP or the service worker",
+    layer: "Connection-Allowlist in Chrome 152+, otherwise uncovered",
     hostedExpectation:
-      "The hint is accepted: no directive governs resource hints, and a name lookup is not a fetch, so the service worker never sees it. The payload rides in the hostname. Whether the query really left cannot be observed from in here — the probe prints the name so you can look for it in a DNS log.",
+      "Chrome 152+ should refuse a name that is not on the Connection-Allowlist. Firefox and Safari have no equivalent, so the hint is accepted there. A name lookup is not a fetch, so the service worker never sees it. The payload rides in the hostname; look for these names in a DNS log to see whether they actually left.",
     sendsRealTraffic: true,
   },
 ];
