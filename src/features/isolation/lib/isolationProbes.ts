@@ -182,9 +182,9 @@ export const ISOLATION_PROBES: IsolationProbe[] = [
   {
     id: "dns-prefetch",
     label: "Leak through a DNS prefetch hint",
-    layer: "Connection-Allowlist in Chrome 152+, otherwise uncovered",
+    layer: "CSP resource-hint union + Connection-Allowlist (Chrome 152+)",
     hostedExpectation:
-      "Chrome 152+ should refuse a name that is not on the Connection-Allowlist. Firefox and Safari have no equivalent, so the hint is accepted there. A name lookup is not a fetch, so the service worker never sees it. The payload rides in the hostname; look for these names in a DNS log to see whether they actually left.",
+      "This probe inserts <link rel=\"dns-prefetch\"> and <link rel=\"preconnect\">, not a hyperlink. X-DNS-Prefetch-Control does not apply to those (Chromium: hyperlinks only). CSP3 allows a hint if any fetch directive would allow the host; the app policy uses default-src 'none' so an invented name should be refused and fire securitypolicyviolation. Chrome 152+ also has Connection-Allowlist. A missing violation is not proof the lookup left — that needs a DNS log of the printed names. A host-wildcard allowlist (https://*.example.com) reopens the channel inside that domain.",
     sendsRealTraffic: true,
   },
 ];
@@ -407,12 +407,13 @@ function probeMarker(): string {
 }
 
 /**
- * Inserts a resource hint and resolves with the CSP violation it drew, or null
- * if the policy let it through.
+ * Inserts a resource hint and resolves with the CSP *violation event*, or null
+ * if none arrived in time.
  *
- * Only the *policy* decision is observable here. Whether the browser then went
- * on to resolve the name happens below the JS layer, which is the whole reason
- * this channel is interesting to an attacker.
+ * That is only the middle layer: DOM insertion always succeeds, and a missing
+ * event is not a DNS query. Authoritative evidence is a log on the zone that
+ * owns {@link DNS_PROBE_ZONE}. `X-DNS-Prefetch-Control` is the wrong signal
+ * here — Chromium applies it to hyperlinks, not to these `<link>` hints.
  */
 function insertResourceHint(rel: string, host: string): Promise<string | null> {
   return new Promise((resolve) => {
@@ -437,34 +438,42 @@ function insertResourceHint(rel: string, host: string): Promise<string | null> {
   });
 }
 
+type WebrtcGatherResult =
+  | { kind: "reflexive"; type: string }
+  | { kind: "gathering-complete"; hostCount: number }
+  | { kind: "timeout" };
+
 /**
- * Resolves with the type of the first candidate that could only exist if the
- * STUN/TURN server answered ("srflx" or "relay"), or null if gathering finishes
- * or times out with nothing but local candidates.
+ * Waits for a candidate that could only exist if the STUN/TURN server answered
+ * ("srflx" or "relay"). Host candidates prove nothing — the browser invents
+ * those from local interfaces without sending a packet.
  *
- * Host candidates prove nothing — the browser makes those up from local
- * interfaces without sending a packet. A server-reflexive one is the evidence:
- * the address in it came back *from* the server.
+ * Gathering ending *without* a reflexive candidate is not the same as the
+ * timeout. Chrome finishes gathering in well under a second when ICE is
+ * administratively prohibited (Connection-Allowlist / CSP webrtc). A real
+ * STUN blackhole sits out ICE retransmits and hits the timer.
  */
-function waitForReflexiveCandidate(connection: RTCPeerConnection): Promise<string | null> {
+function waitForReflexiveCandidate(connection: RTCPeerConnection): Promise<WebrtcGatherResult> {
   return new Promise((resolve) => {
-    const finish = (type: string | null) => {
+    let hostCount = 0;
+    const finish = (result: WebrtcGatherResult) => {
       clearTimeout(timer);
       connection.removeEventListener("icecandidate", onCandidate);
-      resolve(type);
+      resolve(result);
     };
     const onCandidate = (event: RTCPeerConnectionIceEvent) => {
-      // A null candidate marks the end of gathering.
       if (!event.candidate) {
-        finish(null);
+        finish({ kind: "gathering-complete", hostCount });
         return;
       }
       const type = reflexiveCandidateType(event.candidate);
       if (type) {
-        finish(type);
+        finish({ kind: "reflexive", type });
+        return;
       }
+      hostCount += 1;
     };
-    const timer = setTimeout(() => finish(null), WEBRTC_PROBE_TIMEOUT_MS);
+    const timer = setTimeout(() => finish({ kind: "timeout" }), WEBRTC_PROBE_TIMEOUT_MS);
     connection.addEventListener("icecandidate", onCandidate);
   });
 }
@@ -761,20 +770,27 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
       });
       try {
         connection.createDataChannel("probe");
-        const reflexive = waitForReflexiveCandidate(connection);
+        const gathered = waitForReflexiveCandidate(connection);
         await connection.setLocalDescription(await connection.createOffer());
-        const candidateType = await reflexive;
-        if (candidateType) {
+        const result = await gathered;
+        if (result.kind === "reflexive") {
           return {
             id,
             outcome: "escaped",
-            detail: `Gathered a "${candidateType}" ICE candidate from ${WEBRTC_PROBE_STUN_URL}. That host is on no allowlist, and the round trip succeeded: the app sent packets to a server of its choosing and got an answer. The service worker never saw it, because ICE is not a fetch. The reflected address is withheld here — it is your public IP.`,
+            detail: `Gathered a "${result.type}" ICE candidate from ${WEBRTC_PROBE_STUN_URL}. That host is on no allowlist, and the round trip succeeded: the app sent packets to a server of its choosing and got an answer. The service worker never saw it, because ICE is not a fetch. The reflected address is withheld here — it is your public IP.`,
+          };
+        }
+        if (result.kind === "timeout") {
+          return {
+            id,
+            outcome: "inconclusive",
+            detail: `Still gathering after ${WEBRTC_PROBE_TIMEOUT_MS} ms, and no server-reflexive candidate arrived. That is usually the local network dropping UDP — nothing here shows the channel is closed.`,
           };
         }
         return {
           id,
-          outcome: "inconclusive",
-          detail: `No server-reflexive candidate within ${WEBRTC_PROBE_TIMEOUT_MS} ms. That is usually the local network dropping UDP, not Haven containing anything — nothing here shows the channel is closed.`,
+          outcome: "contained",
+          detail: `ICE gathering finished with ${result.hostCount} local candidate${result.hostCount === 1 ? "" : "s"} and no server-reflexive one. A STUN exchange does not end that fast; this is what Chrome does when Connection-Allowlist (or CSP webrtc) prohibits peer connections.`,
         };
       } catch (error) {
         return { id, outcome: "contained", detail: formatProbeError(error) };
@@ -785,32 +801,32 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
 
     case "dns-prefetch": {
       const marker = probeMarker();
-      // Two hints, because they leak differently. `dns-prefetch` gets the name
-      // to a resolver; `preconnect` goes further and completes a TCP and TLS
-      // handshake, putting the name on the wire again in the TLS SNI field.
-      // Either way the payload is the hostname, so neither needs a response.
+      // Two hints, because they leak differently. `dns-prefetch` is a name
+      // lookup; `preconnect` adds TCP and, on HTTPS, TLS (SNI repeats the name).
+      // The payload is the hostname either way. "Blocked" here means a CSP
+      // `securitypolicyviolation` fired — not that the resolver was silent.
       const dnsHost = `stolen-${marker}.${DNS_PROBE_ZONE}`;
       const preconnectHost = `stolen-${marker}-pre.${DNS_PROBE_ZONE}`;
-      const [dnsBlocked, preconnectBlocked] = await Promise.all([
+      const [dnsViolation, preconnectViolation] = await Promise.all([
         insertResourceHint("dns-prefetch", dnsHost),
         insertResourceHint("preconnect", preconnectHost),
       ]);
 
-      if (dnsBlocked && preconnectBlocked) {
+      if (dnsViolation && preconnectViolation) {
         return {
           id,
           outcome: "contained",
-          detail: `Both hints were refused (${dnsBlocked}, ${preconnectBlocked}).`,
+          detail: `CSP reported both hints (${dnsViolation}, ${preconnectViolation}). That is the in-page signal; a DNS log of ${dnsHost} / ${preconnectHost} is what confirms nothing left.`,
         };
       }
       const survived = [
-        dnsBlocked ? null : `dns-prefetch → ${dnsHost}`,
-        preconnectBlocked ? null : `preconnect → ${preconnectHost}`,
+        dnsViolation ? null : `dns-prefetch → ${dnsHost}`,
+        preconnectViolation ? null : `preconnect → ${preconnectHost}`,
       ].filter((entry): entry is string => entry !== null);
       return {
         id,
         outcome: "inconclusive",
-        detail: `No policy stopped ${survived.join(" and ")}. What that proves is only that nothing refused the hint — a name lookup is invisible from inside the page, so look for these names in a DNS query log to see whether they actually left. A hostile app would put stolen data where "${marker}" sits.`,
+        detail: `No CSP violation for ${survived.join(" and ")}. The <link> stayed in the document — that is not a completed lookup. Check a DNS query log for these names (marker "${marker}"). Host-wildcard allowlist entries (https://*.example.com) also make a matching name legal under CSP3's resource-hint union.`,
       };
     }
 

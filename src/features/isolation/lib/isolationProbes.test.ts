@@ -130,14 +130,32 @@ describe("isolation probes", () => {
     expect(connection.close).toHaveBeenCalled();
   });
 
-  it("stays unclear when only local candidates turn up", async () => {
-    // Host candidates are invented locally, so they prove no packet went out.
+  it("treats a gathering that ends without a reflexive candidate as containment", async () => {
+    // Host candidates are invented locally. Ending gathering this quickly,
+    // without a STUN answer, is what Chrome does when ICE is prohibited —
+    // not a 5s UDP blackhole.
     stubPeerConnection(["candidate:2 1 udp 2130706431 192.168.1.4 49152 typ host", null]);
 
     const result = await runIsolationProbe("webrtc");
 
+    expect(result.outcome).toBe("contained");
+    expect(result.detail).toContain("Connection-Allowlist");
+    expect(result.detail).not.toContain("5000");
+  });
+
+  it("stays unclear only when gathering never finishes", async () => {
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    stubPeerConnection(["candidate:2 1 udp 2130706431 192.168.1.4 49152 typ host"]);
+
+    const pending = runIsolationProbe("webrtc");
+    await vi.advanceTimersByTimeAsync(5_000);
+    const result = await pending;
+
     expect(result.outcome).toBe("inconclusive");
-    expect(result.detail).toContain("not Haven containing anything");
+    expect(result.detail).toContain("Still gathering after 5000 ms");
   });
 
   it("names the hostnames to look for when no policy stops a resource hint", async () => {
