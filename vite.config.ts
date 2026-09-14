@@ -7,6 +7,8 @@ import wasm from "vite-plugin-wasm";
 function createResolveAliases() {
   const aliases: Record<string, string> = {
     "@": fileURLToPath(new URL("./src", import.meta.url)),
+    "mindoodb-app-sdk/testing": fileURLToPath(new URL("../mindoodb-app-sdk/src/testing/index.ts", import.meta.url)),
+    "mindoodb-app-sdk": fileURLToPath(new URL("../mindoodb-app-sdk/src/index.ts", import.meta.url)),
   };
 
   if (process.env.LOCAL_MINDOODB === "1") {

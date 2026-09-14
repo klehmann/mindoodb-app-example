@@ -10,15 +10,17 @@ import DatabasesTab from "@/features/databases/components/DatabasesTab.vue";
 import EventsTab from "@/features/events/components/EventsTab.vue";
 import IsolationTab from "@/features/isolation/components/IsolationTab.vue";
 import NetworkTab from "@/features/network/components/NetworkTab.vue";
+import DragTab from "@/features/drag/components/DragTab.vue";
 import ViewsTab from "@/features/views/components/ViewsTab.vue";
 
 const app = reactive(useMindooDBDemoApp());
-const activeTab = ref<"databases" | "views" | "events" | "network" | "isolation">("databases");
+const activeTab = ref<"databases" | "views" | "events" | "drag" | "network" | "isolation">("databases");
 
 const tabOptions = [
   { id: "databases", label: "Databases" },
   { id: "views", label: "Views" },
   { id: "events", label: "Events" },
+  { id: "drag", label: "Drag" },
   { id: "network", label: "Network" },
   { id: "isolation", label: "Isolation" },
 ] as const;
@@ -88,6 +90,7 @@ onMounted(() => {
       <DatabasesTab v-if="activeTab === 'databases'" :app="app" />
       <ViewsTab v-else-if="activeTab === 'views'" :app="app" />
       <EventsTab v-else-if="activeTab === 'events'" :app="app" />
+      <DragTab v-else-if="activeTab === 'drag'" :app="app" />
       <NetworkTab v-else-if="activeTab === 'network'" />
       <IsolationTab v-else />
     </section>

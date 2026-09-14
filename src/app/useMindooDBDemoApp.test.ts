@@ -135,6 +135,14 @@ describe("useMindooDBDemoApp", () => {
     await app.connect();
 
     expect(app.launchContext.value?.appId).toBe("mindoodb-app-example");
+    expect(bridgeController.getDragProfile()?.accepts).toEqual(expect.arrayContaining([
+      "text/plain",
+      "text/markdown",
+      "application/json",
+      "application/x-mindoo-document",
+    ]));
+    expect(app.sources.value).toHaveLength(4);
+    expect(app.dragReady.value).toBe(true);
     expect(app.databases.value).toHaveLength(1);
     expect(app.selectedDatabaseId.value).toBe("main");
     expect(app.selectedDocumentId.value).toBe("doc-1");

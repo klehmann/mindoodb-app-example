@@ -45,6 +45,7 @@ import {
   type MindooDBAppSession,
 } from "mindoodb-app-sdk";
 
+import { useDragSection } from "./useDragSection";
 import { useEventsSection } from "./useEventsSection";
 import { useViewsSection } from "./useViewsSection";
 import { useDocumentsSection } from "./useDocumentsSection";
@@ -112,6 +113,7 @@ export function useMindooDBDemoApp() {
   // ── Sub-composables ────────────────────────────────────────────────
 
   const events = useEventsSection();
+  const drag = useDragSection(session);
 
   const views = useViewsSection({
     session,
@@ -157,6 +159,11 @@ export function useMindooDBDemoApp() {
       session.value = nextSession;
       launchContext.value = await nextSession.getLaunchContext();
       events.subscribeToHostEvents(nextSession, launchContext.value);
+      try {
+        await drag.install(nextSession);
+      } catch (dragError) {
+        console.warn("Host-owned drag is not available on this Haven host.", dragError);
+      }
       databases.value = launchContext.value.databases;
       views.selectedViewId.value = launchContext.value.views[0]?.id ?? null;
       if (databases.value[0]) {
@@ -181,6 +188,7 @@ export function useMindooDBDemoApp() {
   /** Tear down event subscriptions, dispose the active navigator, and disconnect the session. */
   async function disconnect() {
     events.teardownSubscriptions();
+    drag.teardown();
     const currentSession = session.value;
     session.value = null;
     await views.disposeNavigator();
@@ -259,6 +267,12 @@ export function useMindooDBDemoApp() {
     hostViewport: events.hostViewport,
     hostUiPreferences: events.hostUiPreferences,
     eventLog: events.eventLog,
+    sources: drag.sources,
+    lastDrop: drag.lastDrop,
+    hoverActive: drag.hoverActive,
+    dragReady: drag.dragReady,
+    bindSourceCard: drag.bindSourceCard,
+    toggleType: drag.toggleType,
 
     // Documents section
     documentIdFilter: documents.documentIdFilter,
