@@ -29,8 +29,8 @@ importers:
         specifier: ^6.0.2
         version: 6.0.2
       mindoodb-app-sdk:
-        specifier: ^0.0.45
-        version: 0.0.45(@automerge/automerge@3.2.6)(mindoodb@0.0.58)
+        specifier: ^0.0.46
+        version: 0.0.46(@automerge/automerge@3.2.6)(mindoodb@0.0.58)
       mindoodb-view-language:
         specifier: ^0.0.17
         version: 0.0.17
@@ -1133,8 +1133,8 @@ packages:
   mdn-data@2.27.1:
     resolution: {integrity: sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ==}
 
-  mindoodb-app-sdk@0.0.45:
-    resolution: {integrity: sha512-cEQJ/wsmKoGi88nM8Af2maoKDMHUshYRFFTv034Yjvd/IPWqA2yyuXUoPtXmbAgfwd1E9n9DL9l4r9V+rFIT+g==}
+  mindoodb-app-sdk@0.0.46:
+    resolution: {integrity: sha512-hL4i+UIMRnSjarb2uKpk+hZGAixodLexwg6ZM1RMYRyuzOL5gVZQITPU/RwIEIDMAT/6R4QyMY4ffF+tVPrktw==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@automerge/automerge': ^3.3.2
@@ -2509,7 +2509,7 @@ snapshots:
 
   mdn-data@2.27.1: {}
 
-  mindoodb-app-sdk@0.0.45(@automerge/automerge@3.2.6)(mindoodb@0.0.58):
+  mindoodb-app-sdk@0.0.46(@automerge/automerge@3.2.6)(mindoodb@0.0.58):
     dependencies:
       mindoodb-view-language: 0.0.16
     optionalDependencies:
