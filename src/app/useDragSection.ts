@@ -63,6 +63,21 @@ export function createDemoDragSources(): DemoDragSource[] {
   ];
 }
 
+export function hitDemoDropZone(x: number, y: number) {
+  const fromPoint = typeof document.elementFromPoint === "function"
+    ? document.elementFromPoint(x, y)?.closest("[data-drop-zone]")
+    : null;
+  if (fromPoint) {
+    return true;
+  }
+  const zone = document.querySelector("[data-drop-zone]");
+  if (!(zone instanceof HTMLElement)) {
+    return false;
+  }
+  const rect = zone.getBoundingClientRect();
+  return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
+}
+
 export function offersForSource(source: DemoDragSource): MindooDBAppDragOffer[] {
   return source.enabledTypes
     .filter((type) => type in source.offers)
@@ -88,10 +103,10 @@ export function useDragSection(session: Ref<MindooDBAppSession | null>) {
     await nextSession.drag.setProfile({
       accepts: [...MINDOODB_APP_WELL_KNOWN_DRAG_TYPES],
       onOver: (event) => {
-        const zone = document.elementFromPoint(event.x, event.y)?.closest("[data-drop-zone]");
-        hoverActive.value = Boolean(zone);
+        const zone = hitDemoDropZone(event.x, event.y);
+        hoverActive.value = zone;
         return {
-          accept: Boolean(zone),
+          accept: zone,
           effect: zone ? "copy" : "forbidden",
         };
       },
