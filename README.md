@@ -1,5 +1,5 @@
 # MindooDB App Example
-
+ 
 A complete reference application for the [MindooDB App SDK](https://github.com/klehmann/mindoodb-app-example), demonstrating every major SDK feature in a working Vue 3 app. Use it to learn how MindooDB apps work, or fork it as a starting point for your own app.
 
 **Live demo:** https://app-example.mindoodb.com (register this URL in Haven to try it)
