@@ -27,6 +27,12 @@ The example app covers the full surface of the MindooDB App SDK, organized into 
 - **Expand / Collapse** -- full category expansion control (expand / collapse current entry, expand all, collapse all, toggle individual categories)
 - **Category awareness** -- dynamically detects whether the selected view has categories and shows category-specific controls only when relevant
 
+### Host tab -- Focus and notices
+
+- **Host focus** -- shows whether this launch is the surface on screen, and can request that focus now or after 4 seconds
+- **Progress notice** -- counts from 0% to 100% in one Haven notice, updating the same id every 10%
+- **Delayed notice** -- sends a notice after 4 seconds so you can leave the app and click the notice to bring it back
+
 ### Events tab -- Theme and viewport
 
 - **Theme tracking** -- displays the current Haven theme mode (light/dark) and preset name, with live updates

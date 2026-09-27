@@ -47,6 +47,7 @@ import {
 
 import { useDragSection } from "./useDragSection";
 import { useEventsSection } from "./useEventsSection";
+import { useHostSection } from "./useHostSection";
 import { useViewsSection } from "./useViewsSection";
 import { useDocumentsSection } from "./useDocumentsSection";
 
@@ -114,6 +115,7 @@ export function useMindooDBDemoApp() {
 
   const events = useEventsSection();
   const drag = useDragSection(session);
+  const host = useHostSection(session);
 
   const views = useViewsSection({
     session,
@@ -164,6 +166,11 @@ export function useMindooDBDemoApp() {
       } catch (dragError) {
         console.warn("Host-owned drag is not available on this Haven host.", dragError);
       }
+      try {
+        await host.install(nextSession);
+      } catch (hostError) {
+        console.warn("Host focus is not available on this Haven host.", hostError);
+      }
       databases.value = launchContext.value.databases;
       views.selectedViewId.value = launchContext.value.views[0]?.id ?? null;
       if (databases.value[0]) {
@@ -189,6 +196,7 @@ export function useMindooDBDemoApp() {
   async function disconnect() {
     events.teardownSubscriptions();
     drag.teardown();
+    host.teardown();
     const currentSession = session.value;
     session.value = null;
     await views.disposeNavigator();
@@ -273,6 +281,18 @@ export function useMindooDBDemoApp() {
     dragReady: drag.dragReady,
     bindSourceCard: drag.bindSourceCard,
     toggleType: drag.toggleType,
+
+    // Host focus and notices
+    hostFocused: host.hostFocused,
+    hostAvailable: host.hostAvailable,
+    hostStatus: host.hostStatus,
+    hostSeverity: host.hostSeverity,
+    checkHostFocus: host.checkHostFocus,
+    requestHostFocusNow: host.requestHostFocusNow,
+    requestHostFocusLater: host.requestHostFocusLater,
+    startHostProgress: host.startHostProgress,
+    scheduleHostNotice: host.scheduleHostNotice,
+    cancelHostTimers: host.cancelHostTimers,
 
     // Documents section
     documentIdFilter: documents.documentIdFilter,

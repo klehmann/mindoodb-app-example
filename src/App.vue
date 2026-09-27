@@ -11,10 +11,11 @@ import EventsTab from "@/features/events/components/EventsTab.vue";
 import IsolationTab from "@/features/isolation/components/IsolationTab.vue";
 import NetworkTab from "@/features/network/components/NetworkTab.vue";
 import DragTab from "@/features/drag/components/DragTab.vue";
+import HostTab from "@/features/host/components/HostTab.vue";
 import ViewsTab from "@/features/views/components/ViewsTab.vue";
 
 const app = reactive(useMindooDBDemoApp());
-const activeTab = ref<"databases" | "views" | "events" | "drag" | "network" | "isolation">("databases");
+const activeTab = ref<"databases" | "views" | "events" | "drag" | "network" | "isolation" | "host">("databases");
 
 const tabOptions = [
   { id: "databases", label: "Databases" },
@@ -23,6 +24,7 @@ const tabOptions = [
   { id: "drag", label: "Drag" },
   { id: "network", label: "Network" },
   { id: "isolation", label: "Isolation" },
+  { id: "host", label: "Host" },
 ] as const;
 
 const viewportLabel = computed(() =>
@@ -92,7 +94,8 @@ onMounted(() => {
       <EventsTab v-else-if="activeTab === 'events'" :app="app" />
       <DragTab v-else-if="activeTab === 'drag'" :app="app" />
       <NetworkTab v-else-if="activeTab === 'network'" />
-      <IsolationTab v-else />
+      <IsolationTab v-else-if="activeTab === 'isolation'" />
+      <HostTab v-else :app="app" />
     </section>
   </main>
 </template>
