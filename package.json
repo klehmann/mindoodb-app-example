@@ -28,14 +28,14 @@
     "@primeuix/styled": "^0.7.4",
     "@primeuix/themes": "^2.0.3",
     "codemirror": "^6.0.2",
-    "mindoodb-app-sdk": "^0.0.51",
+    "mindoodb-app-sdk": "^0.0.53",
     "mindoodb-view-language": "^0.0.17",
     "primeicons": "^7.0.0",
     "primevue": "^4.5.4",
     "vue": "^3.5.31"
   },
   "devDependencies": {
-    "@automerge/automerge": "^3.2.1",
+    "@automerge/automerge": "^3.4.1",
     "@types/node": "25.5.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "@vue/test-utils": "^2.4.6",

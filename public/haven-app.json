@@ -1,0 +1,51 @@
+{
+  "format": "mindoodb.haven.app",
+  "formatVersion": 1,
+  "appId": "mindoodb-app-example",
+  "label": "SDK Example App",
+  "description": "Reference app demonstrating the features of the MindooDB App SDK.",
+  "version": "1.0.0",
+  "runtime": "iframe",
+  "hosting": "external",
+  "defaultLaunchDatabaseId": "sdkexample",
+  "databases": [
+    {
+      "logicalDatabaseId": "sdkexample",
+      "label": "SDK Example database",
+      "databaseId": "sdkexample",
+      "permissions": [
+        "write",
+        "delete",
+        "history",
+        "attachments",
+        "views"
+      ]
+    }
+  ],
+  "listing": {
+    "summary": {
+      "en": "Reference app demonstrating the features of the MindooDB App SDK.",
+      "de": "Referenz-App, die die Funktionen des MindooDB App SDK demonstriert.",
+      "es": "App de referencia que demuestra las funciones del MindooDB App SDK.",
+      "fr": "Application de référence démontrant les fonctionnalités du MindooDB App SDK.",
+      "it": "App di riferimento che dimostra le funzionalità del MindooDB App SDK.",
+      "nb": "Referanseapp som demonstrerer funksjonene i MindooDB App SDK.",
+      "nl": "Referentie-app die de functies van de MindooDB App SDK demonstreert.",
+      "pl": "Aplikacja referencyjna demonstrująca funkcje MindooDB App SDK."
+    },
+    "description": {
+      "de": "Beispielanwendung, die die Funktionen des MindooDB App SDK demonstriert. Sie ist außerdem eine gute Referenz für KI-gestützte App-Entwicklung.\n\nQuellcode: github.com/klehmann/mindoodb-app-sdk",
+      "en": "Example application demonstrating the features of the MindooDB App SDK. It is also a good reference for AI-based app development.\n\nSource code: github.com/klehmann/mindoodb-app-sdk",
+      "es": "Aplicación de ejemplo que demuestra las funciones del MindooDB App SDK. También es una buena referencia para el desarrollo de apps asistido por IA.\n\nCódigo fuente: github.com/klehmann/mindoodb-app-sdk",
+      "fr": "Application d'exemple démontrant les fonctionnalités du MindooDB App SDK. C'est aussi une bonne référence pour le développement d'applications assisté par IA.\n\nCode source : github.com/klehmann/mindoodb-app-sdk",
+      "it": "Applicazione di esempio che dimostra le funzionalità del MindooDB App SDK. È anche un buon riferimento per lo sviluppo di app basato sull'IA.\n\nCodice sorgente: github.com/klehmann/mindoodb-app-sdk",
+      "nb": "Eksempelapplikasjon som demonstrerer funksjonene i MindooDB App SDK. Den er også en god referanse for KI-basert apputvikling.\n\nKildekode: github.com/klehmann/mindoodb-app-sdk",
+      "nl": "Voorbeeldapplicatie die de functies van de MindooDB App SDK demonstreert. Het is ook een goede referentie voor AI-gebaseerde app-ontwikkeling.\n\nBroncode: github.com/klehmann/mindoodb-app-sdk",
+      "pl": "Przykładowa aplikacja demonstrująca funkcje MindooDB App SDK. To także dobre odniesienie przy tworzeniu aplikacji z pomocą AI.\n\nKod źródłowy: github.com/klehmann/mindoodb-app-sdk"
+    },
+    "icon": "listing/icon.webp",
+    "publisher": {
+      "name": "Mindoo GmbH"
+    }
+  }
+}

@@ -6,6 +6,12 @@
 # `*` rather than an origin allowlist: Cloudflare's static `_headers` can only emit
 # one fixed value, and browsers reject multi-valued `Access-Control-Allow-Origin`.
 
+# haven-app.json is what Haven fetches to install this app from its URL (and what the
+# landing page reads). Without CORS the install fails from haven.mindoodb.com.
+/haven-app.json
+  Access-Control-Allow-Origin: *
+  Cache-Control: no-cache
+
 /haven-bundle.json
   Access-Control-Allow-Origin: *
   Cache-Control: no-cache
