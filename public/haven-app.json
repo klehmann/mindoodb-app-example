@@ -25,6 +25,7 @@
       ]
     }
   ],
+  "publicUrl": "https://app-example.mindoodb.com/",
   "listing": {
     "summary": {
       "en": "Reference app demonstrating the features of the MindooDB App SDK.",
