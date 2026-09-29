@@ -6,7 +6,10 @@
   "description": "Reference app demonstrating the features of the MindooDB App SDK.",
   "version": "1.0.0",
   "runtime": "iframe",
-  "hosting": "external",
+  "hosting": "hosted",
+  "networkAllowlist": [
+    "https://api.open-meteo.com/*"
+  ],
   "defaultLaunchDatabaseId": "sdkexample",
   "databases": [
     {

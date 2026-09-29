@@ -23,6 +23,12 @@ describe("haven-app.json", () => {
     expect(definition).not.toBeNull();
   });
 
+  it("keeps the hosted network allowlist the store copy declares", () => {
+    const { definition } = validateMindooDBAppDefinition(raw);
+    expect(definition?.hosting).toBe("hosted");
+    expect(definition?.networkAllowlist).toEqual(["https://api.open-meteo.com/*"]);
+  });
+
   it("carries the store listing", () => {
     const { definition } = validateMindooDBAppDefinition(raw);
     expect(definition?.listing?.summary).toBeTruthy();
