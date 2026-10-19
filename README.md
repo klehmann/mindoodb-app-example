@@ -108,9 +108,7 @@ Files:
 - `src/app/useEmbedsSection.test.ts` -- the flow against the SDK's mock Haven
 - `src/features/embeds/components/EmbedsTab.vue` -- the UI
 
-The SDK README section "Components: embedding another app's editor" documents the API;
-[Mindoo CRM](https://github.com/klehmann/mindoodb-app-crm) is a larger host with
-folders, several open editors and save checks.
+The SDK README section "Components: embedding another app's editor" documents the API.
 
 ## Tech stack
 
