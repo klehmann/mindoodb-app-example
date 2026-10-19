@@ -39,6 +39,33 @@ The example app covers the full surface of the MindooDB App SDK, organized into 
 - **Viewport tracking** -- shows the current iframe dimensions, updated in real time as the user resizes the app chicklet in Haven
 - **Event log** -- records every theme and viewport event since launch, including the initial snapshot
 
+### Agent tools tab -- WebMCP
+
+- **Agent tools (WebMCP)** -- the app offers its document operations to AI agents through Haven; the tab lists the tools as agents see them, whether Haven currently lets agents call them, and every change an agent made (each one an undo step). See [Agent tools (WebMCP)](#agent-tools-webmcp) below.
+
+## Agent tools (WebMCP)
+
+The app offers its document operations to AI agents. Haven registers them with the browser's agent interface ([WebMCP](https://webmachinelearning.github.io/webmcp/)) under the prefix `agentToolPrefix` from `public/haven-app.json`, so agents see `example_documents_list`, `example_document_update` and so on. Agents can only call them while the user has switched on **Agent tools** in Haven's settings and allowed this app.
+
+| Tool | What it does |
+|---|---|
+| `example_get_context` | The open database, read-only state, full-text index, field names, selected document |
+| `example_documents_list` | Exact field criteria (`where`, a `documents.query` filter) and/or a topic search (`text`, the full-text index; substring fallback when it is off) |
+| `example_document_get` | One document's data and attachment names |
+| `example_document_create` / `_update` / `_delete` | Writes; each is one undo step and returns its `undoStepId`. Delete is `consequentialHint`, so Haven asks the user first |
+| `example_undo` | Takes back an agent write; refuses (`STATE_CHANGED`) when the document changed since |
+| `example_users_search` | Directory lookup (needs the `directory` permission) |
+
+Where to look:
+
+- `src/features/agent/lib/exampleAgentTools.ts` -- the tools: plain objects with `name`, `description`, `inputSchema`, `annotations` and `execute`, built from a small `deps` object. Errors are `MindooDBAppAgentToolError` with a code and the next step for the agent.
+- `src/features/agent/lib/agentUndo.ts` -- one undo step per agent write, with a conflict check before undoing.
+- `src/app/useAgentSection.ts` -- `session.agent.registerTools()` once the session exists, `session.agent.setContext()` whenever the selection changes.
+- `public/haven-app.json` (`agentToolPrefix`, `agent`) and `public/agent/agent.en.md` -- what agents learn about the app before it runs (`haven_apps_describe`).
+- Tests: `src/features/agent/lib/exampleAgentTools.test.ts` calls `execute` directly against the SDK's mock database; `src/app/useAgentSection.test.ts` calls the tools by their prefixed names through `createFakeBridgeHost`, as an agent would; `src/features/agent/agentProfile.test.ts` runs `checkAgentManifest` so the manifest never names a tool that does not exist.
+
+The SDK documentation is in the [SDK README](https://github.com/klehmann/mindoodb-app-sdk#agent-tools-webmcp). Apps with a real data model should present it to agents in plain words; [mindoodb-app-todomanager](https://github.com/klehmann/mindoodb-app-todomanager) (`src/features/agent/`) is the fuller example.
+
 ## Tech stack
 
 | | |
@@ -68,7 +95,7 @@ Then, in Haven:
 
 1. Go to **Application settings** and register a new application with the URL `http://localhost:4200`.
 2. Choose a runtime: **iframe** (embedded in Haven) or **window** (separate browser tab).
-3. **Map one or more databases** to the app and configure the desired capabilities (read, create, update, delete, history, attachments, views).
+3. **Map one or more databases** to the app and configure the desired capabilities (read, create, update, delete, history, attachments, views, and directory for the `users_search` agent tool).
 4. Optionally **attach view mappings** so the Views tab has something to display.
 5. **Launch the app** from Haven. The SDK bridge connects automatically and the app shows live data.
 
@@ -154,9 +181,11 @@ src/
     useDocumentsSection.ts      Documents tab: CRUD, history, attachments, full-text search
     useViewsSection.ts          Views tab: navigator traversal, expansion, batched entry reading
     useEventsSection.ts         Events tab: host theme/viewport tracking, event log
+    useAgentSection.ts          Agent tools: registration with Haven, agent context
     useMindooDBDemoApp.test.ts  Integration tests using the SDK mock bridge
   assets/styles/                Global Mindoo theme styling (CSS custom properties)
   features/
+    agent/                      AI agent tools (WebMCP), agent undo, Agent tools tab
     databases/                  Document CRUD, history, attachment UI, and full-text search
     events/                     Theme and viewport event display and logging
     views/                      Haven view rendering helpers and categorized grid UI

@@ -13,9 +13,10 @@ import NetworkTab from "@/features/network/components/NetworkTab.vue";
 import DragTab from "@/features/drag/components/DragTab.vue";
 import HostTab from "@/features/host/components/HostTab.vue";
 import ViewsTab from "@/features/views/components/ViewsTab.vue";
+import AgentTab from "@/features/agent/components/AgentTab.vue";
 
 const app = reactive(useMindooDBDemoApp());
-const activeTab = ref<"databases" | "views" | "events" | "drag" | "network" | "isolation" | "host">("databases");
+const activeTab = ref<"databases" | "views" | "events" | "drag" | "network" | "isolation" | "host" | "agent">("databases");
 
 const tabOptions = [
   { id: "databases", label: "Databases" },
@@ -25,6 +26,7 @@ const tabOptions = [
   { id: "network", label: "Network" },
   { id: "isolation", label: "Isolation" },
   { id: "host", label: "Host" },
+  { id: "agent", label: "Agent tools" },
 ] as const;
 
 const viewportLabel = computed(() =>
@@ -95,6 +97,7 @@ onMounted(() => {
       <DragTab v-else-if="activeTab === 'drag'" :app="app" />
       <NetworkTab v-else-if="activeTab === 'network'" />
       <IsolationTab v-else-if="activeTab === 'isolation'" />
+      <AgentTab v-else-if="activeTab === 'agent'" :app="app" />
       <HostTab v-else :app="app" />
     </section>
   </main>
