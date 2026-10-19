@@ -8,6 +8,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { language, LOCALES, messages, resolveLocale, segments, setLocale, t, tn, type PluralForms } from "@/i18n";
 
+import havenApp from "../../public/haven-app.json";
+
 type Entry = string | PluralForms;
 const table = messages as unknown as Record<string, Record<string, Entry>>;
 const english = table.en!;
@@ -120,5 +122,25 @@ describe("locale selection", () => {
       { text: "Stored in " },
       { text: "sdkexample", param: "database" },
     ]);
+  });
+});
+
+describe("haven-app.json", () => {
+  /** The texts below every "fr" key: the localized store listing Haven shows. */
+  function french(value: unknown, path = "", out: [string, string][] = []): [string, string][] {
+    if (value && typeof value === "object") {
+      for (const [key, child] of Object.entries(value)) {
+        if (key === "fr" && typeof child === "string") out.push([`${path}.fr`, child]);
+        else french(child, `${path}.${key}`, out);
+      }
+    }
+    return out;
+  }
+
+  it("French puts a non-breaking space before : ; ? ! and inside « »", () => {
+    const bad = french(havenApp)
+      .filter(([, text]) => / [:;?!»]|« /.test(text))
+      .map(([path]) => path);
+    expect(bad).toEqual([]);
   });
 });
