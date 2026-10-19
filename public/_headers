@@ -19,3 +19,9 @@
 /haven-bundle.zip
   Access-Control-Allow-Origin: *
   Cache-Control: public, max-age=300
+
+# The agent guide named in haven-app.json (`agent.guide`). Haven fetches it when an
+# agent calls haven_apps_describe, from its own origin.
+/agent/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: no-cache
