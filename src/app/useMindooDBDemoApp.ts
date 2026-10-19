@@ -50,6 +50,7 @@ import { useEventsSection } from "./useEventsSection";
 import { useHostSection } from "./useHostSection";
 import { useViewsSection } from "./useViewsSection";
 import { useDocumentsSection } from "./useDocumentsSection";
+import { useAgentSection } from "./useAgentSection";
 
 export { type DemoEventEntry } from "./useEventsSection";
 
@@ -136,6 +137,25 @@ export function useMindooDBDemoApp() {
     busyAction,
     setSuccess,
     onDocumentMutation: async () => {
+      if (views.selectedView.value) {
+        await views.loadSelectedView();
+      }
+    },
+  });
+
+  // AI agent tools (WebMCP): see useAgentSection and src/features/agent/.
+  const agent = useAgentSection({
+    session,
+    launchContext,
+    selectedDatabase,
+    selectedDatabaseInfo,
+    isTimeTravelActive,
+    selectedDocumentId: documents.selectedDocumentId,
+    knownFields: documents.availableSearchFields,
+    fulltextEnabled: documents.hasSearchIndex,
+    indexedFields: documents.indexedFields,
+    afterWrite: async (docId) => {
+      await documents.refreshDocuments(docId);
       if (views.selectedView.value) {
         await views.loadSelectedView();
       }
@@ -332,6 +352,13 @@ export function useMindooDBDemoApp() {
     previewAttachment: documents.previewAttachment,
     downloadAttachment: documents.downloadAttachment,
     removeAttachment: documents.removeAttachment,
+
+    // Agent tools section
+    exposedToolNames: agent.exposedToolNames,
+    agentToolsEnabled: agent.agentToolsEnabled,
+    agentToolsStatus: agent.agentToolsStatus,
+    agentTools: agent.agentTools,
+    agentSteps: agent.agentSteps,
 
     // Views section
     availableViews: views.availableViews,

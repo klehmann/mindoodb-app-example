@@ -10,6 +10,90 @@
   "networkAllowlist": [
     "https://api.open-meteo.com/*"
   ],
+  "agentToolPrefix": "example",
+  "agent": {
+    "summary": {
+      "en": "Reference app of the MindooDB App SDK. Its documents are free-form JSON objects in the SDK Example database; agents can find, read, create, change and delete them and undo their own changes.",
+      "de": "Referenz-App des MindooDB App SDK. Ihre Dokumente sind frei aufgebaute JSON-Objekte in der SDK-Example-Datenbank; Agenten können sie finden, lesen, anlegen, ändern und löschen und ihre eigenen Änderungen rückgängig machen."
+    },
+    "capabilities": [
+      {
+        "id": "find",
+        "title": {
+          "en": "Find and read documents",
+          "de": "Dokumente finden und lesen"
+        },
+        "tools": [
+          "get_context",
+          "documents_list",
+          "document_get"
+        ]
+      },
+      {
+        "id": "edit",
+        "title": {
+          "en": "Create, change and delete documents",
+          "de": "Dokumente anlegen, ändern und löschen"
+        },
+        "tools": [
+          "document_create",
+          "document_update",
+          "document_delete"
+        ]
+      },
+      {
+        "id": "undo",
+        "title": {
+          "en": "Undo agent changes",
+          "de": "Änderungen des Agenten rückgängig machen"
+        },
+        "tools": [
+          "undo"
+        ]
+      },
+      {
+        "id": "people",
+        "title": {
+          "en": "Look up people in the directory",
+          "de": "Personen im Verzeichnis nachschlagen"
+        },
+        "tools": [
+          "users_search"
+        ]
+      }
+    ],
+    "examples": {
+      "en": [
+        "Which documents have status open?",
+        "Find the documents about the quarterly report",
+        "Create a document with title Kickoff and status planned",
+        "Set the status of the selected document to done",
+        "Undo that"
+      ],
+      "de": [
+        "Welche Dokumente haben den Status open?",
+        "Finde die Dokumente zum Quartalsbericht",
+        "Lege ein Dokument mit Titel Kickoff und Status planned an",
+        "Setze den Status des ausgewählten Dokuments auf done",
+        "Mach das rückgängig"
+      ]
+    },
+    "limits": {
+      "en": [
+        "Works on the database open in the app's Databases tab only",
+        "No attachment, view or history tools",
+        "Undo covers changes made by agents in this app session, not the user's own edits"
+      ],
+      "de": [
+        "Arbeitet nur mit der Datenbank, die im Reiter Databases der App geöffnet ist",
+        "Keine Werkzeuge für Anhänge, Ansichten oder Versionsverlauf",
+        "Rückgängig erfasst Änderungen von Agenten in dieser App-Sitzung, nicht die eigenen Änderungen der Person"
+      ]
+    },
+    "guide": {
+      "en": "agent/agent.en.md"
+    }
+  },
   "defaultLaunchDatabaseId": "sdkexample",
   "databases": [
     {
@@ -21,7 +105,8 @@
         "delete",
         "history",
         "attachments",
-        "views"
+        "views",
+        "directory"
       ]
     }
   ],

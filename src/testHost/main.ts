@@ -27,6 +27,8 @@ async function start() {
       preferredDatabaseId: definition.defaultLaunchDatabaseId,
     },
     databases: mockDatabasesFromDefinition(definition, seedDocuments),
+    // Agents see the tools under this prefix, as in Haven (`example_documents_list`).
+    agentToolPrefix: definition.agentToolPrefix,
   });
 }
 
