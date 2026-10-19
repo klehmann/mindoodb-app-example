@@ -20,10 +20,6 @@ change that adds it: labels, buttons, placeholders, empty states, errors,
   form of address: German *du*, Spanish *tú*, French *vous*, Italian *tu*,
   Norwegian *du*, Dutch *je*, Polish informal.
 
-**In this repo:** the store listing texts in `public/haven-app.json` are in all eight
-languages.
-
-**Known gap:** the demo UI itself (`src/App.vue`, `src/features/**`) is English only —
-hard-coded strings, no `vue-i18n`. When you add or change UI here, add `vue-i18n` with
-`src/i18n/locales/<lang>.json` and a key-parity test (as in mindoodb-app-starter)
-instead of adding more English literals.
+**In this repo:** the UI texts live in `src/i18n/` (typed tables per language, `t()`/`tn()`,
+see README "Languages"), the store listing texts in `public/haven-app.json`; both in all
+eight languages. Agent tool descriptions are for models and stay English.

@@ -16,6 +16,7 @@ import {
   sessionEndingProbes,
   summarizeIsolationResults,
 } from "@/features/isolation/lib/isolationProbes";
+import { formatTime, segments, t, tn } from "@/i18n";
 
 interface RecordedViolation {
   directive: string;
@@ -46,8 +47,8 @@ function onViolation(event: SecurityPolicyViolationEvent) {
   violations.value = [
     {
       directive: event.violatedDirective,
-      blockedUri: event.blockedURI || "(empty)",
-      at: new Date().toLocaleTimeString(),
+      blockedUri: event.blockedURI || t("emptyValue"),
+      at: formatTime(Date.now()),
     },
     ...violations.value,
   ].slice(0, 20);
@@ -100,9 +101,9 @@ function outcomeSeverity(outcome: IsolationProbeResult["outcome"]) {
 
 function outcomeLabel(outcome: IsolationProbeResult["outcome"]) {
   if (outcome === "contained") {
-    return "contained";
+    return t("outcomeContained");
   }
-  return outcome === "escaped" ? "escaped" : "not covered";
+  return outcome === "escaped" ? t("outcomeEscaped") : t("outcomeNotCovered");
 }
 </script>
 
@@ -111,32 +112,35 @@ function outcomeLabel(outcome: IsolationProbeResult["outcome"]) {
     <section class="glass-card panel">
       <div class="panel__header">
         <div>
-          <p class="panel__eyebrow">Breakout probes</p>
-          <h3>Try to escape the sandbox</h3>
+          <p class="panel__eyebrow">{{ t("isoEyebrow") }}</p>
+          <h3>{{ t("isoHeading") }}</h3>
         </div>
-        <Tag :value="hosting" :severity="hosting === 'hosted' ? 'success' : 'warn'" rounded />
+        <Tag :value="hosting === 'hosted' ? t('hostingHosted') : t('hostingExternal')" :severity="hosting === 'hosted' ? 'success' : 'warn'" rounded />
       </div>
       <p class="panel__copy">
-        Every probe below is supposed to fail. <strong>Contained</strong> means the browser or
-        Haven refused; <strong>escaped</strong> means the app got out. The Network tab asks which
-        hosts an app may call — this tab asks whether it can leave at all.
+        <template
+          v-for="(part, index) in segments('isoIntro', { contained: t('isoIntroContained'), escaped: t('isoIntroEscaped') })"
+          :key="index"
+        >
+          <strong v-if="part.param">{{ part.text }}</strong>
+          <template v-else>{{ part.text }}</template>
+        </template>
       </p>
 
       <p class="panel__copy">
-        Probes marked <em>run it yourself</em> are skipped by the batch button because they send
-        real packets to a third party. Start those individually, when you mean to.
+        <template v-for="(part, index) in segments('isoRunYourselfCopy', { tag: t('runItYourself') })" :key="index">
+          <em v-if="part.param">{{ part.text }}</em>
+          <template v-else>{{ part.text }}</template>
+        </template>
       </p>
 
       <Message v-if="hosting === 'external'" severity="warn" :closable="false">
-        This app is running in external mode, on its own origin, with none of Haven's containment
-        applied. Expect nearly everything here to escape. That is exactly why external mode is
-        restricted to loopback dev servers — install the app as a hosted bundle to see the
-        difference.
+        {{ t("isoExternalWarning") }}
       </Message>
 
       <div class="action-row">
         <Button
-          label="Run the safe probes"
+          :label="t('runSafeProbes')"
           icon="pi pi-play"
           :loading="runningAll"
           :disabled="runningAll || running !== null"
@@ -144,18 +148,18 @@ function outcomeLabel(outcome: IsolationProbeResult["outcome"]) {
         />
         <Button
           v-if="hasResults"
-          label="Clear"
+          :label="t('clear')"
           severity="secondary"
           size="small"
           :disabled="runningAll || running !== null"
           @click="reset"
         />
         <div v-if="hasResults" class="summary">
-          <Tag :value="`${summary.contained} contained`" severity="success" rounded />
-          <Tag v-if="summary.escaped" :value="`${summary.escaped} escaped`" severity="danger" rounded />
+          <Tag :value="tn('countContained', summary.contained)" severity="success" rounded />
+          <Tag v-if="summary.escaped" :value="tn('countEscaped', summary.escaped)" severity="danger" rounded />
           <Tag
             v-if="summary.inconclusive"
-            :value="`${summary.inconclusive} not covered`"
+            :value="tn('countNotCovered', summary.inconclusive)"
             severity="warn"
             rounded
           />
@@ -170,7 +174,7 @@ function outcomeLabel(outcome: IsolationProbeResult["outcome"]) {
                 {{ probe.label }}
                 <Tag
                   v-if="probe.sendsRealTraffic"
-                  value="run it yourself"
+                  :value="t('runItYourself')"
                   severity="warn"
                   rounded
                 />
@@ -185,7 +189,7 @@ function outcomeLabel(outcome: IsolationProbeResult["outcome"]) {
                 rounded
               />
               <Button
-                label="Run"
+                :label="t('run')"
                 size="small"
                 severity="secondary"
                 :loading="running === probe.id"
@@ -206,20 +210,18 @@ function outcomeLabel(outcome: IsolationProbeResult["outcome"]) {
     <section class="glass-card panel">
       <div class="panel__header">
         <div>
-          <p class="panel__eyebrow">Navigation probes</p>
-          <h3>These end the session if they work</h3>
+          <p class="panel__eyebrow">{{ t("navEyebrow") }}</p>
+          <h3>{{ t("navHeading") }}</h3>
         </div>
       </div>
       <p class="panel__copy">
-        A navigation is egress: whatever the app puts in the URL has already reached the other
-        origin by the time anything loads. If one of these succeeds, this app is gone and you will
-        be looking at httpbin instead — which is the demonstration. They are kept out of
-        <em>Run the safe probes</em> so a single click cannot end the demo.
+        <template v-for="(part, index) in segments('navCopy', { button: t('runSafeProbes') })" :key="index">
+          <em v-if="part.param">{{ part.text }}</em>
+          <template v-else>{{ part.text }}</template>
+        </template>
       </p>
       <p class="panel__copy panel__copy--muted">
-        When a navigation is refused, the app is told nothing at all. The violation is reported on
-        the wrapper document one frame up, so the only signal available here is that the app still
-        exists a moment later. Haven shows the blocked-navigation toast.
+        {{ t("navCopyMuted") }}
       </p>
 
       <ul class="probe-list">
@@ -237,7 +239,7 @@ function outcomeLabel(outcome: IsolationProbeResult["outcome"]) {
                 rounded
               />
               <Button
-                label="Run"
+                :label="t('run')"
                 size="small"
                 severity="danger"
                 outlined
@@ -259,13 +261,12 @@ function outcomeLabel(outcome: IsolationProbeResult["outcome"]) {
     <section v-if="violations.length" class="glass-card panel">
       <div class="panel__header">
         <div>
-          <p class="panel__eyebrow">CSP violations</p>
-          <h3>Reported on this document</h3>
+          <p class="panel__eyebrow">{{ t("cspEyebrow") }}</p>
+          <h3>{{ t("cspHeading") }}</h3>
         </div>
       </div>
       <p class="panel__copy">
-        Only violations of the app's own policy show up here. A refused frame navigation is
-        reported on the wrapper instead, so its absence from this list is expected.
+        {{ t("cspCopy") }}
       </p>
       <ul class="violation-list">
         <li v-for="(violation, index) in violations" :key="`${violation.at}-${index}`">

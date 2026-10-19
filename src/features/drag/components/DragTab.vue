@@ -2,6 +2,8 @@
 import { nextTick, onMounted, watch } from "vue";
 import Tag from "primevue/tag";
 
+import { t, tn } from "@/i18n";
+
 const cardRefs = new Map<string, HTMLElement>();
 
 const props = defineProps<{
@@ -50,22 +52,22 @@ watch(
   <section class="tab-section">
     <div class="summary-grid">
       <article class="glass-card summary-card">
-        <span>Gesture</span>
-        <strong>Copy only</strong>
-        <small>Mouse moves 8px; touch uses a long-press</small>
+        <span>{{ t("gesture") }}</span>
+        <strong>{{ t("copyOnly") }}</strong>
+        <small>{{ t("gestureHint") }}</small>
       </article>
       <article class="glass-card summary-card">
-        <span>Last drop</span>
-        <strong>{{ app.lastDrop ? `${Object.keys(app.lastDrop).length} types` : "None yet" }}</strong>
-        <small>Source cards never change</small>
+        <span>{{ t("lastDrop") }}</span>
+        <strong>{{ app.lastDrop ? tn("typesCount", Object.keys(app.lastDrop).length) : t("noneYet") }}</strong>
+        <small>{{ t("sourceCardsUnchanged") }}</small>
       </article>
     </div>
 
     <section class="glass-card panel">
       <div class="panel__header">
         <div>
-          <p class="panel__eyebrow">Sources</p>
-          <h3>Drag a card into another example-app chicklet</h3>
+          <p class="panel__eyebrow">{{ t("sourcesEyebrow") }}</p>
+          <h3>{{ t("dragHeading") }}</h3>
         </div>
       </div>
       <div class="source-grid">
@@ -77,7 +79,7 @@ watch(
         >
           <div class="source-card__title">
             <strong>{{ source.title }}</strong>
-            <Tag value="Drag" severity="secondary" rounded />
+            <Tag :value="t('dragTag')" severity="secondary" rounded />
           </div>
           <label
             v-for="type in Object.keys(source.offers)"
@@ -104,12 +106,12 @@ watch(
     >
       <div class="panel__header">
         <div>
-          <p class="panel__eyebrow">Drop zone</p>
-          <h3>Received copy payloads</h3>
+          <p class="panel__eyebrow">{{ t("dropZone") }}</p>
+          <h3>{{ t("receivedPayloads") }}</h3>
         </div>
       </div>
       <p v-if="!app.lastDrop" class="panel__empty">
-        Drop here from another visible example-app chicklet. Every accepted type is shown.
+        {{ t("dropZoneHint") }}
       </p>
       <div v-else class="drop-list">
         <article v-for="type in Object.keys(app.lastDrop)" :key="type" class="drop-item">

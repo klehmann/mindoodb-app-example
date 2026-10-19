@@ -55,6 +55,7 @@ import { useHostSection } from "./useHostSection";
 import { useViewsSection } from "./useViewsSection";
 import { useDocumentsSection } from "./useDocumentsSection";
 import { useAgentSection } from "./useAgentSection";
+import { formatDateTime, setLocale, t } from "@/i18n";
 
 export { type DemoEventEntry } from "./useEventsSection";
 
@@ -86,6 +87,7 @@ export function useMindooDBDemoApp() {
   const error = ref<string | null>(null);
   const successMessage = ref<string | null>(null);
   const busyAction = ref<string | null>(null);
+  let stopLocaleSync: (() => void) | null = null;
 
   // ── Derived / computed state ───────────────────────────────────────
 
@@ -94,7 +96,7 @@ export function useMindooDBDemoApp() {
   );
   const isTimeTravelActive = computed(() => launchContext.value?.timeTravelDate != null);
   const timeTravelDateLabel = computed(() =>
-    launchContext.value?.timeTravelDate == null ? "" : new Date(launchContext.value.timeTravelDate).toLocaleString(),
+    launchContext.value?.timeTravelDate == null ? "" : formatDateTime(launchContext.value.timeTravelDate),
   );
 
   // Capability flags derived from the active database's permission set,
@@ -185,6 +187,10 @@ export function useMindooDBDemoApp() {
       const nextSession = await bridge.connect();
       session.value = nextSession;
       launchContext.value = await nextSession.getLaunchContext();
+      // Show Haven's UI language, and follow it when the user switches (src/i18n).
+      setLocale(launchContext.value.locale);
+      stopLocaleSync?.();
+      stopLocaleSync = nextSession.onLocaleChange(setLocale);
       events.subscribeToHostEvents(nextSession, launchContext.value);
       try {
         await drag.install(nextSession);
@@ -213,10 +219,7 @@ export function useMindooDBDemoApp() {
       }
     } catch (connectError) {
       events.resetTheme();
-      error.value = readErrorMessage(
-        connectError,
-        "Failed to connect to MindooDB Haven. Launch the app from Haven or provide a compatible bridge host.",
-      );
+      error.value = readErrorMessage(connectError, t("connectFailed"));
     } finally {
       loading.value = false;
     }
@@ -225,6 +228,8 @@ export function useMindooDBDemoApp() {
   /** Tear down event subscriptions, dispose the active navigator, and disconnect the session. */
   async function disconnect() {
     events.teardownSubscriptions();
+    stopLocaleSync?.();
+    stopLocaleSync = null;
     drag.teardown();
     host.teardown();
     await embeds.teardown();
@@ -263,7 +268,7 @@ export function useMindooDBDemoApp() {
         }
       }
     } catch (databaseError) {
-      error.value = readErrorMessage(databaseError, "Failed to load the selected database.");
+      error.value = readErrorMessage(databaseError, t("databaseLoadFailed"));
     } finally {
       loading.value = false;
     }

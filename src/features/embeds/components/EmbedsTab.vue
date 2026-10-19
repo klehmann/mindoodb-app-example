@@ -9,7 +9,8 @@ import Message from "primevue/message";
 import Tag from "primevue/tag";
 
 import type { EmbeddedEditorStatus, useEmbedsSection } from "@/app/useEmbedsSection";
-import type { EmbeddedEditorKind } from "@/features/embeds/lib/embeddedEditors";
+import { EMBEDS_DATABASE_ID, type EmbeddedEditorKind } from "@/features/embeds/lib/embeddedEditors";
+import { segments, t } from "@/i18n";
 
 const props = defineProps<{
   app: { embeds: UnwrapNestedRefs<ReturnType<typeof useEmbedsSection>> };
@@ -39,10 +40,10 @@ const renaming = ref<{ docId: string; title: string } | null>(null);
 const pendingClose = ref<{ next: () => Promise<unknown> } | null>(null);
 
 function statusLabel(editor: EmbeddedEditorStatus) {
-  if (!editor.component) return "Not installed";
-  if (editor.access === "granted") return "Ready";
-  if (editor.access === "pending") return "Asks on open";
-  return "Asks on first open";
+  if (!editor.component) return t("editorNotInstalled");
+  if (editor.access === "granted") return t("ready");
+  if (editor.access === "pending") return t("editorAsksOnOpen");
+  return t("editorAsksOnFirstOpen");
 }
 
 function statusSeverity(editor: EmbeddedEditorStatus) {
@@ -74,7 +75,7 @@ async function resolveClose(mode: "save" | "discard" | "cancel") {
 }
 
 function create(kind: EmbeddedEditorKind) {
-  const title = newTitle.value.trim() || `New ${editorOf(kind).noun.toLowerCase()}`;
+  const title = newTitle.value.trim() || t(editorOf(kind).newKey);
   void afterClose(async () => {
     await props.app.embeds.createDocument(kind, title, editorPanel.value!);
     newTitle.value = "";
@@ -94,7 +95,7 @@ async function saveRename() {
 }
 
 async function remove(docId: string, title: string) {
-  if (window.confirm(`Delete "${title || "Untitled"}" and everything that belongs to it?`)) {
+  if (window.confirm(t("confirmDeleteEmbedded", { title: title || t("untitled") }))) {
     await props.app.embeds.deleteDocument(docId);
   }
 }
@@ -103,7 +104,7 @@ async function remove(docId: string, title: string) {
 <template>
   <section class="tab-section">
     <Message v-if="!app.embeds.embedsSupported" severity="warn" :closable="false">
-      This Haven cannot embed editors of other apps yet. Update Haven to try this tab.
+      {{ t("embedsUnsupported") }}
     </Message>
     <!-- While an editor is open, notices go below it (see the comment at the confirm buttons). -->
     <Message v-if="app.embeds.notice && !app.embeds.openDocId" severity="warn" :closable="false">
@@ -112,30 +113,31 @@ async function remove(docId: string, title: string) {
 
     <section class="glass-card panel">
       <div>
-        <p class="panel__eyebrow">Editors of other apps</p>
-        <h3>Create Word documents, spreadsheets and presentations in this app's database</h3>
+        <p class="panel__eyebrow">{{ t("embedsEyebrow") }}</p>
+        <h3>{{ t("embedsHeading") }}</h3>
         <p class="panel__hint">
-          TeamEdit, TeamGrid and TeamSlides offer their editors as components. This app shows them below; the
-          documents are stored in <code>sdkexample</code>, not in the other apps' databases.
+          <template v-for="(part, index) in segments('embedsHint', { database: EMBEDS_DATABASE_ID })" :key="index">
+            <code v-if="part.param">{{ part.text }}</code>
+            <template v-else>{{ part.text }}</template>
+          </template>
         </p>
       </div>
 
       <div class="editor-grid">
         <article v-for="editor in app.embeds.editors" :key="editor.kind" class="editor-card">
           <div class="editor-card__title">
-            <strong>{{ editor.component?.label ?? editor.noun }}</strong>
+            <strong>{{ editor.component?.label ?? t(editor.nounKey) }}</strong>
             <Tag :value="statusLabel(editor)" :severity="statusSeverity(editor)" rounded />
           </div>
           <small v-if="!editor.component">
-            Install {{ editor.appName }} in Haven, then reload this app.
+            {{ t("installEditorHint", { app: editor.appName }) }}
           </small>
           <small v-else-if="editor.access !== 'granted'">
-            {{ editor.component.appLabel }} has not been allowed to open this app's documents yet. Haven asks when
-            you open or create one.
+            {{ t("editorNotAllowedYet", { app: editor.component.appLabel }) }}
           </small>
-          <small v-else>Provided by {{ editor.component.appLabel }}.</small>
+          <small v-else>{{ t("providedBy", { app: editor.component.appLabel }) }}</small>
           <Button
-            :label="`New ${editor.noun.toLowerCase()}`"
+            :label="t(editor.newKey)"
             icon="pi pi-plus"
             size="small"
             :disabled="!editor.component || !app.embeds.canEdit || app.embeds.busy"
@@ -145,15 +147,15 @@ async function remove(docId: string, title: string) {
       </div>
 
       <label class="field">
-        <span class="field__label">Title for the next new document (optional)</span>
-        <input v-model="newTitle" class="native-input" placeholder="e.g. Budget 2027">
+        <span class="field__label">{{ t("nextTitle") }}</span>
+        <input v-model="newTitle" class="native-input" :placeholder="t('nextTitlePlaceholder')">
       </label>
     </section>
 
     <section class="glass-card panel">
-      <p class="panel__eyebrow">Stored in sdkexample</p>
+      <p class="panel__eyebrow">{{ t("storedIn", { database: EMBEDS_DATABASE_ID }) }}</p>
       <p v-if="!app.embeds.embeddedDocuments.length" class="panel__empty">
-        No documents yet. Create one above.
+        {{ t("noEmbeddedDocuments") }}
       </p>
       <ul v-else class="doc-list">
         <li
@@ -162,25 +164,25 @@ async function remove(docId: string, title: string) {
           class="doc-row"
           :class="{ 'doc-row--open': row.docId === app.embeds.openDocId }"
         >
-          <Tag :value="editorOf(row.kind).noun" severity="secondary" rounded />
+          <Tag :value="t(editorOf(row.kind).nounKey)" severity="secondary" rounded />
           <form v-if="renaming?.docId === row.docId" class="doc-row__rename" @submit.prevent="saveRename">
-            <input v-model="renaming.title" class="native-input" aria-label="New title">
-            <Button type="submit" label="Save" size="small" />
-            <Button label="Cancel" size="small" severity="secondary" text @click="renaming = null" />
+            <input v-model="renaming.title" class="native-input" :aria-label="t('newTitle')">
+            <Button type="submit" :label="t('save')" size="small" />
+            <Button :label="t('cancel')" size="small" severity="secondary" text @click="renaming = null" />
           </form>
-          <span v-else class="doc-row__title">{{ row.title || "Untitled" }}</span>
+          <span v-else class="doc-row__title">{{ row.title || t("untitled") }}</span>
           <div class="doc-row__actions">
-            <Button label="Open" size="small" :disabled="row.docId === app.embeds.openDocId || app.embeds.busy" @click="open(row.docId)" />
+            <Button :label="t('open')" size="small" :disabled="row.docId === app.embeds.openDocId || app.embeds.busy" @click="open(row.docId)" />
             <Button
-              label="Rename"
+              :label="t('rename')"
               size="small"
               severity="secondary"
               :disabled="!app.embeds.canEdit || row.docId === app.embeds.openDocId"
-              :title="row.docId === app.embeds.openDocId ? 'Rename it in the editor while it is open' : undefined"
+              :title="row.docId === app.embeds.openDocId ? t('renameInEditor') : undefined"
               @click="renaming = { docId: row.docId, title: row.title }"
             />
             <Button
-              label="Delete"
+              :label="t('delete')"
               size="small"
               severity="danger"
               text
@@ -195,10 +197,10 @@ async function remove(docId: string, title: string) {
     <section class="glass-card panel">
       <div class="panel__header">
         <div>
-          <p class="panel__eyebrow">Editor</p>
+          <p class="panel__eyebrow">{{ t("editorEyebrow") }}</p>
           <h3>
-            {{ app.embeds.openDocument?.title || (app.embeds.openDocId ? "Untitled" : "No document open") }}
-            <Tag v-if="app.embeds.openDirty" value="Unsaved changes" severity="warn" rounded />
+            {{ app.embeds.openDocument?.title || (app.embeds.openDocId ? t("untitled") : t("noDocumentOpen")) }}
+            <Tag v-if="app.embeds.openDirty" :value="t('unsavedChanges')" severity="warn" rounded />
           </h3>
         </div>
         <!--
@@ -207,22 +209,22 @@ async function remove(docId: string, title: string) {
           (placement "overlay") it follows its element's size and scrolling, not
           layout shifts.
         -->
-        <div v-if="pendingClose" class="confirm" role="alertdialog" aria-label="Unsaved changes">
-          <span>Save changes first?</span>
-          <Button label="Save" size="small" @click="resolveClose('save')" />
-          <Button label="Don't save" size="small" severity="danger" @click="resolveClose('discard')" />
-          <Button label="Cancel" size="small" severity="secondary" text @click="resolveClose('cancel')" />
+        <div v-if="pendingClose" class="confirm" role="alertdialog" :aria-label="t('unsavedChanges')">
+          <span>{{ t("saveChangesFirst") }}</span>
+          <Button :label="t('save')" size="small" @click="resolveClose('save')" />
+          <Button :label="t('dontSave')" size="small" severity="danger" @click="resolveClose('discard')" />
+          <Button :label="t('cancel')" size="small" severity="secondary" text @click="resolveClose('cancel')" />
         </div>
         <div v-else-if="app.embeds.openDocId" class="doc-row__actions">
-          <Button label="Save" icon="pi pi-save" size="small" :disabled="!app.embeds.canEdit" @click="app.embeds.saveEditor()" />
-          <Button label="Close" icon="pi pi-times" size="small" severity="secondary" @click="afterClose(async () => {})" />
+          <Button :label="t('save')" icon="pi pi-save" size="small" :disabled="!app.embeds.canEdit" @click="app.embeds.saveEditor()" />
+          <Button :label="t('close')" icon="pi pi-times" size="small" severity="secondary" @click="afterClose(async () => {})" />
         </div>
       </div>
 
       <div class="editor-panel">
         <div ref="editorPanel" class="editor-panel__frame" />
         <p v-show="!app.embeds.openDocId" class="panel__empty editor-panel__empty">
-          Open or create a document: its editor appears here.
+          {{ t("editorPanelEmpty") }}
         </p>
       </div>
       <Message v-if="app.embeds.notice && app.embeds.openDocId" severity="warn" :closable="false">

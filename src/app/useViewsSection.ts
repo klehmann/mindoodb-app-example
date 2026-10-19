@@ -31,6 +31,7 @@ import {
 } from "mindoodb-app-sdk";
 
 import { getVisibleViewColumns } from "@/features/views/lib/runtimeViews";
+import { t } from "@/i18n";
 import { ref } from "vue";
 
 /** Extract the `.message` from an Error, or return the provided fallback string. */
@@ -132,7 +133,7 @@ export function useViewsSection(deps: UseViewsSectionDeps) {
       return;
     }
     try {
-      busyAction.value = "Focusing view entry";
+      busyAction.value = t("busyFocusingEntry");
       await currentViewNavigator.value.gotoPos(entry.position);
       await refreshViewPage();
     } finally {
@@ -144,27 +145,27 @@ export function useViewsSection(deps: UseViewsSectionDeps) {
   // Each wraps `navigateView` with the corresponding navigator method.
 
   async function gotoFirstViewEntry() {
-    await navigateView("Navigating view", (navigator) => navigator.gotoFirst());
+    await navigateView(t("busyNavigating"), (navigator) => navigator.gotoFirst());
   }
 
   async function gotoLastViewEntry() {
-    await navigateView("Navigating view", (navigator) => navigator.gotoLast());
+    await navigateView(t("busyNavigating"), (navigator) => navigator.gotoLast());
   }
 
   async function gotoNextViewEntry() {
-    await navigateView("Navigating view", (navigator) => navigator.gotoNext());
+    await navigateView(t("busyNavigating"), (navigator) => navigator.gotoNext());
   }
 
   async function gotoPreviousViewEntry() {
-    await navigateView("Navigating view", (navigator) => navigator.gotoPrev());
+    await navigateView(t("busyNavigating"), (navigator) => navigator.gotoPrev());
   }
 
   async function gotoParentViewEntry() {
-    await navigateView("Navigating view", (navigator) => navigator.gotoParent());
+    await navigateView(t("busyNavigating"), (navigator) => navigator.gotoParent());
   }
 
   async function gotoFirstChildViewEntry() {
-    await navigateView("Navigating view", (navigator) => navigator.gotoFirstChild());
+    await navigateView(t("busyNavigating"), (navigator) => navigator.gotoFirstChild());
   }
 
   /** Convenience: focus the first category row currently visible in the batch. */
@@ -196,16 +197,16 @@ export function useViewsSection(deps: UseViewsSectionDeps) {
     }
 
     try {
-      busyAction.value = "Loading view";
+      busyAction.value = t("busyLoadingView");
       await currentViewNavigator.value?.dispose();
       currentViewNavigator.value = await sourceSession.openViewNavigator(view.id);
       await currentViewNavigator.value.gotoFirst();
       await refreshViewPage();
       if (view.sources.length > 1) {
-        viewMessage.value = "This navigator is reading a multi-source Haven view.";
+        viewMessage.value = t("viewMultiSource");
       }
     } catch (viewError) {
-      viewMessage.value = readErrorMessage(viewError, "The selected view could not be loaded.");
+      viewMessage.value = readErrorMessage(viewError, t("viewLoadFailed"));
     } finally {
       busyAction.value = null;
     }

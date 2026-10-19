@@ -24,6 +24,8 @@
  */
 import { readMindooDBAppHostingMode, type MindooDBAppHostingMode } from "mindoodb-app-sdk";
 
+import { t, tn, type MessageKey } from "@/i18n";
+
 /**
  * Where a successful breakout would send data. httpbin is deliberately the same
  * host the Network tab uses as its not-on-the-allowlist example, so both tabs
@@ -84,109 +86,45 @@ export interface IsolationProbeResult {
   elapsedMs: number;
 }
 
+/** The probe texts live in src/i18n as `<textKey>Label`, `<textKey>Layer` and `<textKey>Expect`. */
+type ProbeTextKey = MessageKey extends infer K ? (K extends `${infer Base}Label` ? Base : never) : never;
+
+/** A probe whose texts are getters, so they follow a language change. */
+function defineProbe(
+  id: IsolationProbeId,
+  textKey: ProbeTextKey,
+  flags: Pick<IsolationProbe, "endsSession" | "sendsRealTraffic"> = {},
+): IsolationProbe {
+  return {
+    id,
+    get label() {
+      return t(`${textKey}Label` as MessageKey);
+    },
+    get layer() {
+      return t(`${textKey}Layer` as MessageKey);
+    },
+    get hostedExpectation() {
+      return t(`${textKey}Expect` as MessageKey);
+    },
+    ...flags,
+  };
+}
+
 export const ISOLATION_PROBES: IsolationProbe[] = [
-  {
-    id: "self-navigation",
-    label: "Navigate this frame to httpbin",
-    layer: "Wrapper document, frame-src pinned to this bundle",
-    hostedExpectation:
-      "Refused before any request leaves the browser. The violation is reported on the wrapper, not here, so this app sees nothing at all — check Haven for the blocked-navigation toast.",
-    endsSession: true,
-  },
-  {
-    id: "cross-bundle-navigation",
-    label: "Navigate to another app's bundle",
-    layer: "Wrapper document, frame-src path scope",
-    hostedExpectation:
-      "Refused. The wrapper names this bundle's prefix including its path, so a sibling bundle is off limits even though it is the same origin.",
-    endsSession: true,
-  },
-  {
-    id: "top-navigation",
-    label: "Navigate Haven's top window",
-    layer: "Sandbox without allow-top-navigation",
-    hostedExpectation: "Throws. The app may not steer the tab Haven runs in.",
-    endsSession: true,
-  },
-  {
-    id: "parent-navigation",
-    label: "Navigate the wrapper (the parent frame)",
-    layer: "Sandboxed-navigation flag",
-    hostedExpectation:
-      "Throws. This is the attack that would replace the wrapper with a document that has no frame-src; a sandboxed frame may not navigate an ancestor, which is what makes the wrapper's policy authoritative.",
-    endsSession: true,
-  },
-  {
-    id: "nested-iframe",
-    label: "Embed httpbin in a nested iframe",
-    layer: "App CSP, frame-src 'self'",
-    hostedExpectation:
-      "Blocked, and unlike the navigation probes this one is visible here: the violation fires on this document, so it shows up in the report below.",
-  },
-  {
-    id: "popup",
-    label: "Open a popup window",
-    layer: "Sandbox allow-popups capability",
-    hostedExpectation:
-      "Blocked unless the registration grants popups. This is the one switch that reopens a general egress path, so seeing it succeed after you tick the box is the point.",
-  },
-  {
-    id: "form-action",
-    label: "Submit a form to httpbin",
-    layer: "App CSP, form-action",
-    hostedExpectation:
-      "Blocked, by `form-action` or by `frame-src` on the frame the post targets. A form post is egress like any other request. The result names whichever directive refused; if none did and the frame still holds a foreign document, that is a real hole.",
-  },
-  {
-    id: "haven-dom",
-    label: "Read Haven's DOM and URL",
-    layer: "Separate origin",
-    hostedExpectation:
-      "Throws. Haven is `window.top` and a different origin, so its document, URL and globals are unreachable. The wrapper at `window.parent` stays readable — it is same-origin by design and holds nothing but this app's frame.",
-  },
-  {
-    id: "app-storage",
-    label: "Read localStorage",
-    layer: "Separate origin",
-    hostedExpectation:
-      "Succeeds, and that is correct. The app has a real origin of its own, so it gets a real storage bucket — one that is empty on first launch and invisible to Haven and to every other app.",
-  },
-  {
-    id: "service-worker",
-    label: "Register a service worker",
-    layer: "Separate origin",
-    hostedExpectation:
-      "Refused by `worker-src 'none'`, unless the registration has \"Allow workers\" ticked. That switch exists for apps doing real work in a Web Worker — CSP cannot separate the worker kinds, so allowing one allows all three. With it on, expect this to succeed and to report the scope it was given; the probe unregisters the worker again at once either way.",
-  },
-  {
-    id: "cross-bundle-fetch",
-    label: "Fetch another app's bundle assets",
-    layer: "Haven service worker",
-    hostedExpectation: "403 from Haven's worker. Guessing a bundle id gets you nothing.",
-  },
-  {
-    id: "haven-page-fetch",
-    label: "Fetch Haven's own page",
-    layer: "Haven service worker",
-    hostedExpectation:
-      "403. Same origin after install, but only this bundle's asset prefix is readable.",
-  },
-  {
-    id: "webrtc",
-    label: "Reach an ICE server over WebRTC",
-    layer: "Connection-Allowlist webrtc=block (Chrome 152+)",
-    hostedExpectation:
-      "Contained in Chrome 152 and newer, unless the registration has \"Allow WebRTC\" ticked. 148–151 had the same header only behind an origin-trial token, and WebRTC landed late in that trial. The header is Connection-Allowlist, not CSP — current Chrome ignores the experimental webrtc 'block' directive. Firefox and Safari still have no equivalent, so they keep escaping. Sends real packets when it is not blocked, so it is left out of the batch run.",
-    sendsRealTraffic: true,
-  },
-  {
-    id: "dns-prefetch",
-    label: "Leak through a DNS prefetch hint",
-    layer: "CSP resource-hint union + Connection-Allowlist (Chrome 152+)",
-    hostedExpectation:
-      "This probe inserts <link rel=\"dns-prefetch\"> and <link rel=\"preconnect\">, not a hyperlink. X-DNS-Prefetch-Control does not apply to those (Chromium: hyperlinks only). CSP3 allows a hint if any fetch directive would allow the host; the app policy uses default-src 'none' so an invented name should be refused and fire securitypolicyviolation. Chrome 152+ also has Connection-Allowlist. A missing violation is not proof the lookup left — that needs a DNS log of the printed names. A host-wildcard allowlist (https://*.example.com) reopens the channel inside that domain.",
-    sendsRealTraffic: true,
-  },
+  defineProbe("self-navigation", "probeSelfNavigation", { endsSession: true }),
+  defineProbe("cross-bundle-navigation", "probeCrossBundleNavigation", { endsSession: true }),
+  defineProbe("top-navigation", "probeTopNavigation", { endsSession: true }),
+  defineProbe("parent-navigation", "probeParentNavigation", { endsSession: true }),
+  defineProbe("nested-iframe", "probeNestedIframe"),
+  defineProbe("popup", "probePopup"),
+  defineProbe("form-action", "probeFormAction"),
+  defineProbe("haven-dom", "probeHavenDom"),
+  defineProbe("app-storage", "probeAppStorage"),
+  defineProbe("service-worker", "probeServiceWorker"),
+  defineProbe("cross-bundle-fetch", "probeCrossBundleFetch"),
+  defineProbe("haven-page-fetch", "probeHavenPageFetch"),
+  defineProbe("webrtc", "probeWebrtc", { sendsRealTraffic: true }),
+  defineProbe("dns-prefetch", "probeDnsPrefetch", { sendsRealTraffic: true }),
 ];
 
 export function isolationProbe(id: IsolationProbeId): IsolationProbe {
@@ -294,7 +232,12 @@ export function describeExpectation(
   if (hosting === "hosted") {
     return probe.hostedExpectation;
   }
-  return "External mode applies none of Haven's containment, so expect this to succeed. That is the reason external mode is limited to loopback dev servers.";
+  return t("probeExternalExpect");
+}
+
+/** "a", "a and b", "a and b and c" in the current language. */
+function joinAnd(items: string[]): string {
+  return items.reduce((joined, item) => (joined ? t("listAnd", { first: joined, second: item }) : item), "");
 }
 
 function delay(ms: number) {
@@ -351,7 +294,7 @@ async function judgeFrameNavigation(options: {
     if (!event.blockedURI.includes(host)) {
       return;
     }
-    refusals.push(event.violatedDirective || "an unnamed directive");
+    refusals.push(event.violatedDirective || t("unnamedDirective"));
   };
 
   document.addEventListener("securitypolicyviolation", onViolation);
@@ -365,7 +308,7 @@ async function judgeFrameNavigation(options: {
   if (refusals.length) {
     return {
       outcome: "contained",
-      detail: `Refused by ${[...new Set(refusals)].join(" and ")}.`,
+      detail: t("refusedBy", { directives: joinAnd([...new Set(refusals)]) }),
     };
   }
   const inspection = inspectFrameNavigation(options.frame);
@@ -374,7 +317,7 @@ async function judgeFrameNavigation(options: {
   }
   return {
     outcome: inspection.outcome,
-    detail: `${inspection.detail} No CSP violation fired, so nothing refused this.`,
+    detail: t("noViolationFired", { detail: inspection.detail }),
   };
 }
 
@@ -385,14 +328,14 @@ function inspectFrameNavigation(frame: HTMLIFrameElement): {
   try {
     const href = frame.contentWindow?.location.href ?? "";
     if (!href || href === "about:blank") {
-      return { outcome: "contained", detail: "The frame never left about:blank." };
+      return { outcome: "contained", detail: t("frameStayedBlank") };
     }
-    return { outcome: "escaped", detail: `The frame loaded ${href}.` };
+    return { outcome: "escaped", detail: t("frameLoaded", { url: href }) };
   } catch (error) {
     // Reading threw, so a real cross-origin document is sitting in there.
     return {
       outcome: "escaped",
-      detail: `The frame loaded a cross-origin document (${formatProbeError(error)}).`,
+      detail: t("frameLoadedCrossOrigin", { error: formatProbeError(error) }),
     };
   }
 }
@@ -500,8 +443,8 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
           outcome,
           detail:
             outcome === "contained"
-              ? `Still here after asking for ${target}. The navigation never happened and no request left the browser.`
-              : `Navigated to ${target}.`,
+              ? t("stillHereNoRequest", { url: target })
+              : t("navigatedTo", { url: target }),
         };
       } catch (error) {
         return { id, outcome: "contained", detail: formatProbeError(error) };
@@ -519,8 +462,8 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
           outcome,
           detail:
             outcome === "contained"
-              ? `Still here after asking for ${target}.`
-              : `Navigated to ${window.location.href}.`,
+              ? t("stillHere", { url: target })
+              : t("navigatedTo", { url: window.location.href }),
         };
       } catch (error) {
         return { id, outcome: "contained", detail: formatProbeError(error) };
@@ -537,7 +480,7 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
         return {
           id,
           outcome: "contained",
-          detail: "No error thrown, but Haven's tab did not move.",
+          detail: t("topDidNotMove"),
         };
       } catch (error) {
         return { id, outcome: "contained", detail: formatProbeError(error) };
@@ -554,8 +497,8 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
           outcome: window.parent === window.self ? "inconclusive" : "contained",
           detail:
             window.parent === window.self
-              ? "This app is not framed, so there is no parent to navigate."
-              : "No error thrown, but the parent frame did not move.",
+              ? t("notFramedNoParent")
+              : t("parentDidNotMove"),
         };
       } catch (error) {
         return { id, outcome: "contained", detail: formatProbeError(error) };
@@ -580,7 +523,7 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
       return {
         id,
         outcome: verdict.outcome,
-        detail: `Requested ${target} in a nested iframe. ${verdict.detail}`,
+        detail: t("nestedIframeRequested", { url: target, verdict: verdict.detail }),
       };
     }
 
@@ -593,14 +536,14 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
         return {
           id,
           outcome: "contained",
-          detail: "window.open returned null. The sandbox has no allow-popups capability.",
+          detail: t("popupBlocked"),
         };
       }
       opened.close();
       return {
         id,
         outcome: "escaped",
-        detail: `A popup opened to ${target} and was closed again. Popups are granted for this app, so this is an open egress path by configuration.`,
+        detail: t("popupOpened", { url: target }),
       };
     }
 
@@ -631,7 +574,7 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
         return {
           id,
           outcome: verdict.outcome,
-          detail: `Submitted to ${target} into a hidden frame. ${verdict.detail}`,
+          detail: t("formSubmitted", { url: target, verdict: verdict.detail }),
         };
       } catch (error) {
         return { id, outcome: "contained", detail: formatProbeError(error) };
@@ -652,13 +595,12 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
         return {
           id,
           outcome: "inconclusive",
-          detail:
-            "This document is not framed, so there is no Haven window to reach. Run the probe in embedded mode.",
+          detail: t("notFramedNoHaven"),
         };
       }
       let wrapperNote = "";
       try {
-        wrapperNote = ` The wrapper at window.parent stays readable ("${window.parent.document.title}"), which is by design.`;
+        wrapperNote = ` ${t("wrapperReadable", { title: window.parent.document.title })}`;
       } catch {
         // External mode frames the app directly, so there is no wrapper.
       }
@@ -667,7 +609,7 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
         return {
           id,
           outcome: "escaped",
-          detail: `Read Haven's own document. Its title is "${title}".`,
+          detail: t("havenDocumentRead", { title: String(title) }),
         };
       } catch (error) {
         return { id, outcome: "contained", detail: `${formatProbeError(error)}${wrapperNote}` };
@@ -686,13 +628,13 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
         return {
           id,
           outcome: "contained",
-          detail: `localStorage works and is scoped to ${window.location.origin}, this app's own origin. Haven's storage and every other app's sit on different origins and stay unreachable.`,
+          detail: t("storageScoped", { origin: window.location.origin }),
         };
       } catch (error) {
         return {
           id,
           outcome: "inconclusive",
-          detail: `${formatProbeError(error)} An app origin is supposed to have a storage bucket, so this points at a launch problem rather than at containment.`,
+          detail: t("storageMissing", { error: formatProbeError(error) }),
         };
       }
     }
@@ -702,7 +644,7 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
         return {
           id,
           outcome: "contained",
-          detail: "navigator.serviceWorker is not available in this document.",
+          detail: t("serviceWorkerUnavailable"),
         };
       }
       let registration: ServiceWorkerRegistration;
@@ -718,12 +660,7 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
         return {
           id,
           outcome: "escaped",
-          detail:
-            `Registered a worker of the app's own, scoped to ${registration.scope}. `
-            + "It does not claim the open page, so nothing breaks right now, and the probe "
-            + "unregisters it again immediately. On the next load it would control the app "
-            + "and see every request it makes — whether its own fetches would then bypass "
-            + "the runner's allowlist is a separate question this probe does not answer.",
+          detail: t("serviceWorkerRegistered", { scope: registration.scope }),
         };
       } finally {
         await registration.unregister();
@@ -737,7 +674,7 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
         return {
           id,
           outcome: response.ok ? "escaped" : "contained",
-          detail: `HTTP ${response.status} for ${target}.`,
+          detail: t("httpStatusFor", { status: response.status, url: target }),
         };
       } catch (error) {
         return { id, outcome: "contained", detail: formatProbeError(error) };
@@ -750,7 +687,7 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
         return {
           id,
           outcome: response.ok ? "escaped" : "contained",
-          detail: `HTTP ${response.status} for Haven's own /index.html.`,
+          detail: t("httpStatusHavenPage", { status: response.status }),
         };
       } catch (error) {
         return { id, outcome: "contained", detail: formatProbeError(error) };
@@ -762,7 +699,7 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
         return {
           id,
           outcome: "contained",
-          detail: "RTCPeerConnection is not available in this document.",
+          detail: t("webrtcUnavailable"),
         };
       }
       const connection = new RTCPeerConnection({
@@ -777,20 +714,20 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
           return {
             id,
             outcome: "escaped",
-            detail: `Gathered a "${result.type}" ICE candidate from ${WEBRTC_PROBE_STUN_URL}. That host is on no allowlist, and the round trip succeeded: the app sent packets to a server of its choosing and got an answer. The service worker never saw it, because ICE is not a fetch. The reflected address is withheld here — it is your public IP.`,
+            detail: t("webrtcEscaped", { type: result.type, server: WEBRTC_PROBE_STUN_URL }),
           };
         }
         if (result.kind === "timeout") {
           return {
             id,
             outcome: "inconclusive",
-            detail: `Still gathering after ${WEBRTC_PROBE_TIMEOUT_MS} ms, and no server-reflexive candidate arrived. That is usually the local network dropping UDP — nothing here shows the channel is closed.`,
+            detail: t("webrtcTimeout", { ms: WEBRTC_PROBE_TIMEOUT_MS }),
           };
         }
         return {
           id,
           outcome: "contained",
-          detail: `ICE gathering finished with ${result.hostCount} local candidate${result.hostCount === 1 ? "" : "s"} and no server-reflexive one. A STUN exchange does not end that fast; this is what Chrome does when Connection-Allowlist (or CSP webrtc) prohibits peer connections.`,
+          detail: tn("webrtcContained", result.hostCount),
         };
       } catch (error) {
         return { id, outcome: "contained", detail: formatProbeError(error) };
@@ -816,7 +753,12 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
         return {
           id,
           outcome: "contained",
-          detail: `CSP reported both hints (${dnsViolation}, ${preconnectViolation}). That is the in-page signal; a DNS log of ${dnsHost} / ${preconnectHost} is what confirms nothing left.`,
+          detail: t("dnsBothReported", {
+            first: dnsViolation,
+            second: preconnectViolation,
+            dnsHost,
+            preconnectHost,
+          }),
         };
       }
       const survived = [
@@ -826,7 +768,7 @@ async function runProbeById(id: IsolationProbeId): Promise<Omit<IsolationProbeRe
       return {
         id,
         outcome: "inconclusive",
-        detail: `No CSP violation for ${survived.join(" and ")}. The <link> stayed in the document — that is not a completed lookup. Check a DNS query log for these names (marker "${marker}"). Host-wildcard allowlist entries (https://*.example.com) also make a matching name legal under CSP3's resource-hint union.`,
+        detail: t("dnsNotReported", { hints: joinAnd(survived), marker }),
       };
     }
 

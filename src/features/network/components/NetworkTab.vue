@@ -3,6 +3,8 @@ import { computed, nextTick, ref } from "vue";
 import Button from "primevue/button";
 import Tag from "primevue/tag";
 
+import { segments, t } from "@/i18n";
+
 import {
   NETWORK_PRESET_ALLOWED,
   NETWORK_PRESET_BLOCKED,
@@ -24,11 +26,11 @@ const resultPanel = ref<HTMLElement | null>(null);
  */
 const verdict = computed(() => {
   if (!result.value) return null;
-  if (result.value.ok) return { label: "ok", severity: "success", heading: "Request completed" };
+  if (result.value.ok) return { label: t("verdictOk"), severity: "success", heading: t("requestCompleted") };
   if (result.value.inconclusive) {
-    return { label: "unclear", severity: "info", heading: "Result inconclusive" };
+    return { label: t("verdictUnclear"), severity: "info", heading: t("resultInconclusive") };
   }
-  return { label: "blocked", severity: "warn", heading: "Request failed" };
+  return { label: t("verdictBlocked"), severity: "warn", heading: t("requestFailed") };
 });
 
 const methodOptions: Array<{ id: NetworkProbeMethod; label: string }> = [
@@ -77,25 +79,26 @@ async function revealResult() {
     <section class="glass-card panel">
       <div class="panel__header">
         <div>
-          <p class="panel__eyebrow">Network probe</p>
-          <h3>Try a URL the way the browser would</h3>
+          <p class="panel__eyebrow">{{ t("networkEyebrow") }}</p>
+          <h3>{{ t("networkHeading") }}</h3>
         </div>
       </div>
       <p class="panel__copy">
-        This tab only fires the request. Haven enforces the hosted-app network allowlist.
-        In hosted mode, Open-Meteo is typically listed; httpbin is not. A failure there is
-        the allowlist, not CORS — httpbin sends <code>Access-Control-Allow-Origin: *</code>.
+        <template v-for="(part, index) in segments('networkCopy', { header: 'Access-Control-Allow-Origin: *' })" :key="index">
+          <code v-if="part.param">{{ part.text }}</code>
+          <template v-else>{{ part.text }}</template>
+        </template>
       </p>
 
       <div class="preset-row">
         <Button
-          label="Allowed (Open-Meteo)"
+          :label="t('presetAllowed')"
           severity="secondary"
           size="small"
           @click="applyPreset(NETWORK_PRESET_ALLOWED)"
         />
         <Button
-          label="Blocked by Haven, not CORS (httpbin)"
+          :label="t('presetBlocked')"
           severity="secondary"
           size="small"
           @click="applyPreset(NETWORK_PRESET_BLOCKED)"
@@ -103,12 +106,12 @@ async function revealResult() {
       </div>
 
       <label class="field">
-        <span>URL</span>
+        <span>{{ t("url") }}</span>
         <input v-model="url" class="native-input" type="url" spellcheck="false" />
       </label>
 
       <div class="method-row">
-        <span>Method</span>
+        <span>{{ t("method") }}</span>
         <div class="method-row__buttons">
           <button
             v-for="option in methodOptions"
@@ -123,29 +126,29 @@ async function revealResult() {
         </div>
       </div>
 
-      <Button label="Send request" icon="pi pi-send" :loading="busy" :disabled="busy" @click="runProbe" />
+      <Button :label="t('sendRequest')" icon="pi pi-send" :loading="busy" :disabled="busy" @click="runProbe" />
     </section>
 
     <section v-if="result" ref="resultPanel" class="glass-card panel">
       <div class="panel__header">
         <div>
-          <p class="panel__eyebrow">Result</p>
+          <p class="panel__eyebrow">{{ t("resultEyebrow") }}</p>
           <h3>{{ verdict?.heading }}</h3>
         </div>
         <Tag :value="verdict?.label" :severity="verdict?.severity" rounded />
       </div>
       <dl class="result-meta">
         <div>
-          <dt>Status</dt>
+          <dt>{{ t("status") }}</dt>
           <dd>{{ result.status ?? "—" }}</dd>
         </div>
         <div>
-          <dt>Time</dt>
+          <dt>{{ t("time") }}</dt>
           <dd>{{ result.elapsedMs }} ms</dd>
         </div>
       </dl>
       <p v-if="result.error" class="result-error">{{ result.error }}</p>
-      <img v-if="result.imageUrl" class="result-image" :src="result.imageUrl" alt="Loaded image preview" />
+      <img v-if="result.imageUrl" class="result-image" :src="result.imageUrl" :alt="t('imagePreviewAlt')" />
       <pre v-else-if="result.bodyText">{{ result.bodyText }}</pre>
     </section>
   </section>

@@ -3,6 +3,15 @@ import Tag from "primevue/tag";
 import type { MindooDBAppAgentTool } from "mindoodb-app-sdk";
 
 import type { AgentUndoStep } from "@/features/agent/lib/agentUndo";
+import { formatTime, segments, t } from "@/i18n";
+
+/** The code paths named in the "Code:" line; the sentence around them is translated. */
+const codePaths = {
+  tools: "src/features/agent/lib/exampleAgentTools.ts",
+  registration: "src/app/useAgentSection.ts",
+  block: "agent",
+  definition: "public/haven-app.json",
+};
 
 /**
  * Shows what this app offers AI agents: the tools as agents see them, whether
@@ -33,42 +42,44 @@ function firstSentence(text: string) {
     <section class="glass-card panel">
       <div class="panel__header">
         <div>
-          <p class="panel__eyebrow">Agent tools (WebMCP)</p>
-          <h3>Operations this app offers AI agents through Haven</h3>
+          <p class="panel__eyebrow">{{ t("agentEyebrow") }}</p>
+          <h3>{{ t("agentHeading") }}</h3>
         </div>
         <Tag
-          :value="app.agentToolsEnabled ? 'Agents can call them' : 'Not offered to agents'"
+          :value="app.agentToolsEnabled ? t('agentsCanCall') : t('notOfferedToAgents')"
           :severity="app.agentToolsEnabled ? 'success' : 'warn'"
           rounded
         />
       </div>
-      <p class="panel__copy">{{ app.agentToolsStatus }}</p>
+      <p class="panel__copy">{{ app.agentToolsStatus || t("agentNotRegistered") }}</p>
       <ul class="tool-list">
         <li v-for="tool in app.agentTools" :key="tool.name">
           <code>{{ exposedName(tool.name) }}</code>
+          <!-- Tool descriptions are written for models and stay English. -->
           <span>{{ firstSentence(tool.description) }}</span>
         </li>
       </ul>
       <p class="panel__copy">
-        Code: <code>src/features/agent/lib/exampleAgentTools.ts</code> (the tools),
-        <code>src/app/useAgentSection.ts</code> (registration and context) and the <code>agent</code> block in
-        <code>public/haven-app.json</code>.
+        <template v-for="(part, index) in segments('agentCode', codePaths)" :key="index">
+          <code v-if="part.param">{{ part.text }}</code>
+          <template v-else>{{ part.text }}</template>
+        </template>
       </p>
     </section>
 
     <section class="glass-card panel">
       <div class="panel__header">
         <div>
-          <p class="panel__eyebrow">Agent changes</p>
-          <h3>Every agent write is one undo step</h3>
+          <p class="panel__eyebrow">{{ t("agentChangesEyebrow") }}</p>
+          <h3>{{ t("agentChangesHeading") }}</h3>
         </div>
       </div>
-      <p v-if="!app.agentSteps.length" class="panel__copy">No agent changes in this session yet.</p>
+      <p v-if="!app.agentSteps.length" class="panel__copy">{{ t("noAgentChanges") }}</p>
       <ul v-else class="tool-list">
         <li v-for="step in [...app.agentSteps].reverse()" :key="step.id">
           <code>{{ step.id }}</code>
-          <span>{{ step.label }} · {{ new Date(step.at).toLocaleTimeString() }}</span>
-          <Tag v-if="step.undone" value="undone" severity="secondary" rounded />
+          <span>{{ step.label }} · {{ formatTime(step.at) }}</span>
+          <Tag v-if="step.undone" :value="t('undone')" severity="secondary" rounded />
         </li>
       </ul>
     </section>

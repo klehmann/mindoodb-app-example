@@ -15,24 +15,26 @@ import EmbedsTab from "@/features/embeds/components/EmbedsTab.vue";
 import HostTab from "@/features/host/components/HostTab.vue";
 import ViewsTab from "@/features/views/components/ViewsTab.vue";
 import AgentTab from "@/features/agent/components/AgentTab.vue";
+import { t, tn, type MessageKey } from "@/i18n";
 
 const app = reactive(useMindooDBDemoApp());
 const activeTab = ref<"databases" | "views" | "events" | "drag" | "embeds" | "network" | "isolation" | "host" | "agent">("databases");
 
+// Labels are i18n keys, translated in the template so they follow a language change.
 const tabOptions = [
-  { id: "databases", label: "Databases" },
-  { id: "views", label: "Views" },
-  { id: "events", label: "Events" },
-  { id: "drag", label: "Drag" },
-  { id: "embeds", label: "Embedded editors" },
-  { id: "network", label: "Network" },
-  { id: "isolation", label: "Isolation" },
-  { id: "host", label: "Host" },
-  { id: "agent", label: "Agent tools" },
-] as const;
+  { id: "databases", label: "tabDatabases" },
+  { id: "views", label: "tabViews" },
+  { id: "events", label: "tabEvents" },
+  { id: "drag", label: "tabDrag" },
+  { id: "embeds", label: "tabEmbeds" },
+  { id: "network", label: "tabNetwork" },
+  { id: "isolation", label: "tabIsolation" },
+  { id: "host", label: "tabHost" },
+  { id: "agent", label: "tabAgent" },
+] as const satisfies ReadonlyArray<{ id: string; label: MessageKey }>;
 
 const viewportLabel = computed(() =>
-  app.hostViewport ? `${Math.round(app.hostViewport.width)} x ${Math.round(app.hostViewport.height)}` : "pending",
+  app.hostViewport ? `${Math.round(app.hostViewport.width)} x ${Math.round(app.hostViewport.height)}` : t("pending"),
 );
 
 onMounted(() => {
@@ -44,25 +46,26 @@ onMounted(() => {
   <main class="page-shell">
     <section class="hero glass-card">
       <div class="hero__copy">
-        <p class="hero__eyebrow">MindooDB sample app</p>
-        <h1>Haven demo app</h1>
-        <p class="hero__summary">
-          Explore generic document CRUD, mapped views, and host events through the MindooDB App SDK.
-          This demo mirrors the Mindoo theme used by the time-record sample while keeping the code feature-based and SDK-focused.
-        </p>
+        <p class="hero__eyebrow">{{ t("appEyebrow") }}</p>
+        <h1>{{ t("appTitle") }}</h1>
+        <p class="hero__summary">{{ t("appSummary") }}</p>
       </div>
 
       <div class="hero__meta">
-        <Tag :value="`${app.hostTheme.preset} preset`" severity="warn" rounded />
-        <Tag :value="`${app.hostTheme.mode} mode`" severity="contrast" rounded />
-        <Tag :value="`${viewportLabel} viewport`" severity="secondary" rounded />
-        <Tag v-if="app.launchContext" :value="`${app.launchContext.databases.length} mapped databases`" severity="help" rounded />
-        <Tag v-if="app.launchContext" :value="`${app.launchContext.views.length} mapped views`" severity="info" rounded />
-        <Tag v-if="app.isTimeTravelActive" :value="`Time travel: ${app.timeTravelDateLabel}`" severity="warn" rounded />
+        <Tag :value="t('heroPreset', { preset: app.hostTheme.preset })" severity="warn" rounded />
+        <Tag
+          :value="t('heroMode', { mode: t(app.hostTheme.mode === 'light' ? 'modeLight' : 'modeDark') })"
+          severity="contrast"
+          rounded
+        />
+        <Tag :value="t('heroViewport', { size: viewportLabel })" severity="secondary" rounded />
+        <Tag v-if="app.launchContext" :value="tn('heroDatabases', app.launchContext.databases.length)" severity="help" rounded />
+        <Tag v-if="app.launchContext" :value="tn('heroViews', app.launchContext.views.length)" severity="info" rounded />
+        <Tag v-if="app.isTimeTravelActive" :value="t('heroTimeTravel', { date: app.timeTravelDateLabel })" severity="warn" rounded />
       </div>
 
       <div class="hero__actions">
-        <Button label="Reconnect" icon="pi pi-refresh" :disabled="app.loading" @click="app.connect" />
+        <Button :label="t('reconnect')" icon="pi pi-refresh" :disabled="app.loading" @click="app.connect" />
         <span v-if="app.busyAction" class="hero__busy">
           <ProgressSpinner style="width: 1rem; height: 1rem" stroke-width="8" />
           {{ app.busyAction }}
@@ -77,11 +80,11 @@ onMounted(() => {
       {{ app.successMessage }}
     </Message>
     <Message v-if="app.isTimeTravelActive" severity="info" :closable="false">
-      Time travel mode is active. This app is read-only as of {{ app.timeTravelDateLabel }}.
+      {{ t("timeTravelActive", { date: app.timeTravelDateLabel }) }}
     </Message>
 
     <section class="tab-shell glass-card">
-      <nav class="tab-nav" aria-label="App tabs">
+      <nav class="tab-nav" :aria-label="t('tabsLabel')">
         <button
           v-for="tab in tabOptions"
           :key="tab.id"
@@ -89,7 +92,7 @@ onMounted(() => {
           :class="{ 'tab-nav__button--active': activeTab === tab.id }"
           @click="activeTab = tab.id"
         >
-          {{ tab.label }}
+          {{ t(tab.label) }}
         </button>
       </nav>
 

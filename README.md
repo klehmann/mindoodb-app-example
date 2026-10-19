@@ -110,6 +110,24 @@ Files:
 
 The SDK README section "Components: embedding another app's editor" documents the API.
 
+## Languages
+
+The UI speaks all languages Haven offers: English, German, Spanish, French, Italian,
+Norwegian, Dutch and Polish. It uses no i18n library, just `src/i18n/`:
+
+- `locales/en.ts` is the reference table; each other language is a table checked with
+  `satisfies Messages`, so a missing key fails `vue-tsc` (and therefore the build).
+- `t("key", { name })` fills `{placeholders}`, `tn("key", count)` picks the plural form
+  `Intl.PluralRules` names for the count (Polish needs one/few/many).
+- The language comes from Haven: `setLocale(launchContext.locale)` on connect and
+  `session.onLocaleChange(setLocale)` afterwards (`useMindooDBDemoApp.ts`). `de-AT` maps
+  to `de`, `no`/`nn` to `nb`, anything else to English. Dates and numbers use `Intl`.
+- `i18n.test.ts` compares every language's keys, `{placeholders}` and plural forms with
+  English. Try a language in the test host with `/__haven-test/?locale=fr`.
+
+Add every new text to all eight tables in the same change. The agent tool descriptions
+are written for models and stay English.
+
 ## Tech stack
 
 | | |
@@ -229,6 +247,7 @@ src/
     useEmbedsSection.ts         Embedded editors tab: TeamEdit, TeamGrid and TeamSlides as components
     useMindooDBDemoApp.test.ts  Integration tests using the SDK mock bridge
   assets/styles/                Global Mindoo theme styling (CSS custom properties)
+  i18n/                         UI texts in eight languages, t()/tn(), locale from Haven
   features/
     agent/                      AI agent tools (WebMCP), agent undo, Agent tools tab
     databases/                  Document CRUD, history, attachment UI, and full-text search

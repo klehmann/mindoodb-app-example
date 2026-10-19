@@ -39,6 +39,8 @@ import {
   type MindooDBAppLaunchContext,
 } from "mindoodb-app-sdk";
 
+import { t, tn } from "@/i18n";
+
 /** Filter applied to the document list API: show all, only live, or only soft-deleted documents. */
 type DocumentListMode = "all" | "existing" | "deleted";
 
@@ -327,7 +329,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       }
       console.error("Full-text query failed", searchError);
       searchResults.value = [];
-      error.value = readErrorMessage(searchError, "The full-text search failed.");
+      error.value = readErrorMessage(searchError, t("searchFailed"));
     }
   }
 
@@ -350,10 +352,8 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     editorMode.value = "edit";
     if (summary.isDeleted) {
       editorJson.value = "{\n}";
-      historyMessage.value =
-        "The selected document is deleted. Use the history browser to inspect earlier revisions.";
-      attachmentMessage.value =
-        "Deleted documents do not expose current attachments.";
+      historyMessage.value = t("docDeletedHistory");
+      attachmentMessage.value = t("docDeletedAttachments");
       return;
     }
     selectedDocument.value =
@@ -403,8 +403,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       return;
     }
     if (!canUseAttachments.value) {
-      attachmentMessage.value =
-        "Attachment access is not allowed for the selected database.";
+      attachmentMessage.value = t("attachmentsNotAllowed");
       return;
     }
 
@@ -425,8 +424,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     }
     if (!canBrowseHistory.value) {
       historyEntries.value = [];
-      historyMessage.value =
-        "History browsing is not allowed for the selected database.";
+      historyMessage.value = t("historyNotAllowed");
       return;
     }
 
@@ -434,8 +432,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       selectedDocumentId.value,
     );
     if (!historyEntries.value.length) {
-      historyMessage.value =
-        "No historical revisions were found for the selected document.";
+      historyMessage.value = t("historyEmpty");
       return;
     }
 
@@ -466,26 +463,21 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     try {
       const parsed = JSON.parse(editorJson.value);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("Document JSON must be an object.");
+        throw new Error(t("jsonNotObject"));
       }
       data = parsed as Record<string, unknown>;
     } catch (parseError) {
-      error.value = readErrorMessage(
-        parseError,
-        "The JSON document could not be parsed.",
-      );
+      error.value = readErrorMessage(parseError, t("jsonParseFailed"));
       return;
     }
 
     busyAction.value =
-      editorMode.value === "create" ? "Creating document" : "Updating document";
+      editorMode.value === "create" ? t("busyCreating") : t("busyUpdating");
     error.value = null;
     try {
       if (editorMode.value === "create") {
         if (!canCreate.value) {
-          throw new Error(
-            "The selected database does not allow document creation.",
-          );
+          throw new Error(t("createNotAllowed"));
         }
         const created = await selectedDatabase.value.documents.create({
           set: data,
@@ -494,18 +486,16 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
             "default",
         });
         await refreshDocuments(created.id);
-        setSuccess(`Created document ${created.id}.`);
+        setSuccess(t("createdDocument", { id: created.id }));
       } else {
         if (!selectedDocumentId.value) {
-          throw new Error("Select a document before updating it.");
+          throw new Error(t("selectBeforeUpdate"));
         }
         if (!canUpdate.value) {
-          throw new Error(
-            "The selected database does not allow document updates.",
-          );
+          throw new Error(t("updateNotAllowed"));
         }
         if (!selectedDocument.value) {
-          throw new Error("The selected document is deleted or unavailable.");
+          throw new Error(t("documentUnavailable"));
         }
         const patch = buildTopLevelDocumentPatch(
           selectedDocument.value.data,
@@ -516,14 +506,11 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
           patch,
         );
         await refreshDocuments(updated.id);
-        setSuccess(`Updated document ${updated.id}.`);
+        setSuccess(t("updatedDocument", { id: updated.id }));
       }
       await onDocumentMutation();
     } catch (saveError) {
-      error.value = readErrorMessage(
-        saveError,
-        "The document could not be saved.",
-      );
+      error.value = readErrorMessage(saveError, t("saveFailed"));
     } finally {
       busyAction.value = null;
     }
@@ -538,24 +525,19 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     ) {
       return;
     }
-    busyAction.value = "Deleting document";
+    busyAction.value = t("busyDeleting");
     error.value = null;
     try {
       if (!canDelete.value) {
-        throw new Error(
-          "The selected database does not allow document deletion.",
-        );
+        throw new Error(t("deleteNotAllowed"));
       }
       const docId = selectedDocumentId.value;
       await selectedDatabase.value.documents.delete(docId);
       await refreshDocuments();
-      setSuccess(`Deleted document ${docId}.`);
+      setSuccess(t("deletedDocument", { id: docId }));
       await onDocumentMutation();
     } catch (deleteError) {
-      error.value = readErrorMessage(
-        deleteError,
-        "The document could not be deleted.",
-      );
+      error.value = readErrorMessage(deleteError, t("deleteFailed"));
     } finally {
       busyAction.value = null;
     }
@@ -573,7 +555,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       return;
     }
 
-    busyAction.value = "Downloading attachment";
+    busyAction.value = t("busyDownloading");
     error.value = null;
     try {
       const blob = await readAttachmentBlob(
@@ -588,10 +570,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       link.click();
       URL.revokeObjectURL(url);
     } catch (downloadError) {
-      error.value = readErrorMessage(
-        downloadError,
-        "The attachment could not be downloaded.",
-      );
+      error.value = readErrorMessage(downloadError, t("downloadFailed"));
     } finally {
       busyAction.value = null;
     }
@@ -607,7 +586,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       return;
     }
 
-    busyAction.value = "Removing attachment";
+    busyAction.value = t("busyRemovingAttachment");
     error.value = null;
     try {
       await selectedDatabase.value.attachments.remove(
@@ -615,12 +594,9 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
         attachmentName,
       );
       await refreshAttachments();
-      setSuccess(`Removed attachment ${attachmentName}.`);
+      setSuccess(t("removedAttachment", { name: attachmentName }));
     } catch (removeError) {
-      error.value = readErrorMessage(
-        removeError,
-        "The attachment could not be removed.",
-      );
+      error.value = readErrorMessage(removeError, t("removeAttachmentFailed"));
     } finally {
       busyAction.value = null;
     }
@@ -632,7 +608,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       return;
     }
 
-    busyAction.value = "Opening attachment preview";
+    busyAction.value = t("busyPreview");
     error.value = null;
     try {
       await selectedDatabase.value.attachments.openPreview(
@@ -640,10 +616,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
         attachmentName,
       );
     } catch (previewError) {
-      error.value = readErrorMessage(
-        previewError,
-        "The attachment preview could not be opened.",
-      );
+      error.value = readErrorMessage(previewError, t("previewFailed"));
     } finally {
       busyAction.value = null;
     }
@@ -672,7 +645,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       return;
     }
 
-    busyAction.value = "Uploading attachment";
+    busyAction.value = t("busyUploading");
     error.value = null;
     try {
       for (const file of files) {
@@ -695,14 +668,9 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       }
       await refreshAttachments();
       await refreshDocuments(selectedDocumentId.value);
-      setSuccess(
-        `Uploaded ${files.length} attachment${files.length === 1 ? "" : "s"}.`,
-      );
+      setSuccess(tn("uploadedAttachments", files.length));
     } catch (uploadError) {
-      error.value = readErrorMessage(
-        uploadError,
-        "The attachment upload failed.",
-      );
+      error.value = readErrorMessage(uploadError, t("uploadFailed"));
     } finally {
       busyAction.value = null;
     }
@@ -717,7 +685,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       return;
     }
 
-    busyAction.value = "Scanning attachment";
+    busyAction.value = t("busyScanning");
     error.value = null;
     try {
       const result = await selectedDatabase.value.attachments.scan(
@@ -731,10 +699,10 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       if (result.ok) {
         await refreshAttachments();
         await refreshDocuments(selectedDocumentId.value);
-        setSuccess("Scanned document attached.");
+        setSuccess(t("scannedDocument"));
       }
     } catch (scanError) {
-      error.value = readErrorMessage(scanError, "The document scan failed.");
+      error.value = readErrorMessage(scanError, t("scanFailed"));
     } finally {
       busyAction.value = null;
     }
@@ -752,7 +720,7 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     if (!selectedDatabase.value) {
       return;
     }
-    busyAction.value = "Enabling full-text index";
+    busyAction.value = t("busyEnablingIndex");
     error.value = null;
     try {
       await selectedDatabase.value.setFulltextSetup({
@@ -761,15 +729,10 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
       });
       await refreshSearchSetup();
       await runSearchQuery();
-      setSuccess(
-        `Full-text index enabled for ${fields.length} field${fields.length === 1 ? "" : "s"}.`,
-      );
+      setSuccess(tn("indexEnabled", fields.length));
     } catch (indexError) {
       console.error("Enable full-text index failed", indexError);
-      error.value = readErrorMessage(
-        indexError,
-        "The full-text index could not be enabled.",
-      );
+      error.value = readErrorMessage(indexError, t("indexEnableFailed"));
     } finally {
       busyAction.value = null;
     }
@@ -780,19 +743,16 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     if (!selectedDatabase.value) {
       return;
     }
-    busyAction.value = "Disabling full-text index";
+    busyAction.value = t("busyDisablingIndex");
     error.value = null;
     try {
       await selectedDatabase.value.setFulltextSetup(null);
       await refreshSearchSetup();
       searchResults.value = [];
-      setSuccess("Full-text index disabled.");
+      setSuccess(t("indexDisabled"));
     } catch (indexError) {
       console.error("Disable full-text index failed", indexError);
-      error.value = readErrorMessage(
-        indexError,
-        "The full-text index could not be disabled.",
-      );
+      error.value = readErrorMessage(indexError, t("indexDisableFailed"));
     } finally {
       busyAction.value = null;
     }
