@@ -10,6 +10,9 @@
  *   category expansion / collapse, and batched entry reading.
  * - {@link useEventsSection} -- rolling log of host-pushed theme and
  *   viewport events.
+ * - {@link useEmbedsSection} -- TeamEdit, TeamGrid and TeamSlides editors
+ *   embedded in the page, their documents stored in `sdkexample` (nested
+ *   under `embeds` in the returned object).
  *
  * The root owns the SDK bridge lifecycle (`connect` / `disconnect`),
  * shared UI state (`error`, `busyAction`, `successMessage`), database
@@ -46,6 +49,7 @@ import {
 } from "mindoodb-app-sdk";
 
 import { useDragSection } from "./useDragSection";
+import { useEmbedsSection } from "./useEmbedsSection";
 import { useEventsSection } from "./useEventsSection";
 import { useHostSection } from "./useHostSection";
 import { useViewsSection } from "./useViewsSection";
@@ -117,6 +121,7 @@ export function useMindooDBDemoApp() {
   const events = useEventsSection();
   const drag = useDragSection(session);
   const host = useHostSection(session);
+  const embeds = useEmbedsSection(session);
 
   const views = useViewsSection({
     session,
@@ -191,6 +196,11 @@ export function useMindooDBDemoApp() {
       } catch (hostError) {
         console.warn("Host focus is not available on this Haven host.", hostError);
       }
+      try {
+        await embeds.install(nextSession, launchContext.value);
+      } catch (embedsError) {
+        console.warn("Embedded editors are not available on this Haven host.", embedsError);
+      }
       databases.value = launchContext.value.databases;
       views.selectedViewId.value = launchContext.value.views[0]?.id ?? null;
       if (databases.value[0]) {
@@ -217,6 +227,7 @@ export function useMindooDBDemoApp() {
     events.teardownSubscriptions();
     drag.teardown();
     host.teardown();
+    await embeds.teardown();
     const currentSession = session.value;
     session.value = null;
     await views.disposeNavigator();
@@ -313,6 +324,9 @@ export function useMindooDBDemoApp() {
     startHostProgress: host.startHostProgress,
     scheduleHostNotice: host.scheduleHostNotice,
     cancelHostTimers: host.cancelHostTimers,
+
+    // Embedded editors (TeamEdit, TeamGrid, TeamSlides): one nested object, see useEmbedsSection
+    embeds,
 
     // Documents section
     documentIdFilter: documents.documentIdFilter,

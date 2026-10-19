@@ -11,18 +11,20 @@ import EventsTab from "@/features/events/components/EventsTab.vue";
 import IsolationTab from "@/features/isolation/components/IsolationTab.vue";
 import NetworkTab from "@/features/network/components/NetworkTab.vue";
 import DragTab from "@/features/drag/components/DragTab.vue";
+import EmbedsTab from "@/features/embeds/components/EmbedsTab.vue";
 import HostTab from "@/features/host/components/HostTab.vue";
 import ViewsTab from "@/features/views/components/ViewsTab.vue";
 import AgentTab from "@/features/agent/components/AgentTab.vue";
 
 const app = reactive(useMindooDBDemoApp());
-const activeTab = ref<"databases" | "views" | "events" | "drag" | "network" | "isolation" | "host" | "agent">("databases");
+const activeTab = ref<"databases" | "views" | "events" | "drag" | "embeds" | "network" | "isolation" | "host" | "agent">("databases");
 
 const tabOptions = [
   { id: "databases", label: "Databases" },
   { id: "views", label: "Views" },
   { id: "events", label: "Events" },
   { id: "drag", label: "Drag" },
+  { id: "embeds", label: "Embedded editors" },
   { id: "network", label: "Network" },
   { id: "isolation", label: "Isolation" },
   { id: "host", label: "Host" },
@@ -98,7 +100,9 @@ onMounted(() => {
       <NetworkTab v-else-if="activeTab === 'network'" />
       <IsolationTab v-else-if="activeTab === 'isolation'" />
       <AgentTab v-else-if="activeTab === 'agent'" :app="app" />
-      <HostTab v-else :app="app" />
+      <HostTab v-else-if="activeTab === 'host'" :app="app" />
+      <!-- Kept mounted: an open editor lives in an element of this tab and would close with it. -->
+      <EmbedsTab v-show="activeTab === 'embeds'" :app="app" :active="activeTab === 'embeds'" />
     </section>
   </main>
 </template>
