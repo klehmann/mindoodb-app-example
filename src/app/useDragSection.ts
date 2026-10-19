@@ -13,10 +13,13 @@ import {
   type MindooDBAppSession,
 } from "mindoodb-app-sdk";
 
+import { t } from "@/i18n";
+
 export type DemoDragSource = {
   id: string;
-  title: string;
-  offers: Record<string, string>;
+  /** Getters, so the card follows a language change. */
+  readonly title: string;
+  readonly offers: Record<string, string>;
   enabledTypes: string[];
 };
 
@@ -24,24 +27,32 @@ export function createDemoDragSources(): DemoDragSource[] {
   return [
     {
       id: "plain",
-      title: "Plain text",
-      offers: {
-        "text/plain": "Notes from the example app",
+      get title() {
+        return t("dragPlainText");
+      },
+      get offers() {
+        return { "text/plain": t("dragSampleText") };
       },
       enabledTypes: ["text/plain"],
     },
     {
       id: "markdown",
-      title: "Markdown",
-      offers: {
-        "text/plain": "Meeting notes",
-        "text/markdown": "## Meeting notes\n\n- **Agenda**\n- Follow-ups for the next chicklet",
+      get title() {
+        return t("dragMarkdown");
+      },
+      get offers() {
+        return {
+          "text/plain": t("dragMeetingNotes"),
+          "text/markdown": `## ${t("dragMeetingNotes")}\n\n- **${t("dragMeetingAgenda")}**\n- ${t("dragMeetingFollowUps")}`,
+        };
       },
       enabledTypes: ["text/plain", "text/markdown"],
     },
     {
       id: "json",
-      title: "JSON payload",
+      get title() {
+        return t("dragJson");
+      },
       offers: {
         "text/plain": "kind=demo",
         "application/json": JSON.stringify({ kind: "demo", n: 3 }, null, 2),
@@ -50,7 +61,9 @@ export function createDemoDragSources(): DemoDragSource[] {
     },
     {
       id: "document",
-      title: "Document reference",
+      get title() {
+        return t("dragDocument");
+      },
       offers: {
         "text/plain": "sdkexample / demo-doc-1",
         "application/x-mindoo-document": JSON.stringify({

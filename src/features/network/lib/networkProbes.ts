@@ -1,3 +1,5 @@
+import { t } from "@/i18n";
+
 export const NETWORK_PRESET_ALLOWED =
   "https://api.open-meteo.com/v1/forecast?latitude=50.11&longitude=8.68&current=temperature_2m";
 export const NETWORK_PRESET_BLOCKED = "https://httpbin.org/get";
@@ -85,7 +87,7 @@ export function probeWithXhr(url: string): Promise<NetworkProbeResult> {
         elapsedMs: elapsedSince(startedAt),
         bodyText: "",
         imageUrl: null,
-        error: "Network error",
+        error: t("networkError"),
       });
     });
     request.addEventListener("abort", () => {
@@ -95,7 +97,7 @@ export function probeWithXhr(url: string): Promise<NetworkProbeResult> {
         elapsedMs: elapsedSince(startedAt),
         bodyText: "",
         imageUrl: null,
-        error: "Request aborted",
+        error: t("requestAborted"),
       });
     });
     request.open("GET", url);
@@ -128,12 +130,7 @@ export function probeWithImage(url: string, knownImage = false): Promise<Network
         elapsedMs: elapsedSince(startedAt),
         bodyText: "",
         imageUrl: null,
-        error: knownImage
-          ? "Image failed to load"
-          : "Image failed to load — but this URL is not known to serve an image. "
-            + "An <img> renders image bytes and nothing else, so a JSON or HTML "
-            + "endpoint fails here even when the allowlist permits it. Send the "
-            + "same URL with fetch to tell the two apart.",
+        error: knownImage ? t("imageFailed") : t("imageFailedNotImage"),
         inconclusive: !knownImage,
       });
     });
@@ -154,7 +151,7 @@ export async function runNetworkProbe(
       elapsedMs: 0,
       bodyText: "",
       imageUrl: null,
-      error: "Enter a URL first.",
+      error: t("enterUrlFirst"),
     };
   }
   if (method === "xhr") {

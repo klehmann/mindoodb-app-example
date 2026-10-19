@@ -3,6 +3,7 @@ import Button from "primevue/button";
 import Tag from "primevue/tag";
 
 import type { DemoHostSeverity } from "@/app/useHostSection";
+import { t, type MessageKey } from "@/i18n";
 
 defineProps<{
   app: {
@@ -19,36 +20,40 @@ defineProps<{
   };
 }>();
 
-const severities: DemoHostSeverity[] = ["info", "warning", "error"];
+const severities: Array<{ value: DemoHostSeverity; label: MessageKey }> = [
+  { value: "info", label: "severityInfo" },
+  { value: "warning", label: "severityWarning" },
+  { value: "error", label: "severityError" },
+];
 </script>
 
 <template>
   <section class="tab-section">
     <div class="summary-grid">
       <article class="glass-card summary-card">
-        <span>Host focus</span>
-        <strong>{{ app.hostFocused == null ? "Unknown" : app.hostFocused ? "Yes" : "No" }}</strong>
-        <small>Focused tile on the active page, or this launch on its runner page</small>
+        <span>{{ t("hostFocus") }}</span>
+        <strong>{{ app.hostFocused == null ? t("unknown") : app.hostFocused ? t("yes") : t("no") }}</strong>
+        <small>{{ t("hostFocusHint") }}</small>
       </article>
       <article class="glass-card summary-card">
-        <span>SDK</span>
-        <Tag :value="app.hostAvailable ? 'Ready' : 'Unavailable'" :severity="app.hostAvailable ? 'success' : 'warn'" rounded />
-        <small>{{ app.hostStatus }}</small>
+        <span>{{ t("sdk") }}</span>
+        <Tag :value="app.hostAvailable ? t('ready') : t('unavailable')" :severity="app.hostAvailable ? 'success' : 'warn'" rounded />
+        <small>{{ app.hostStatus || t("hostConnectFirst") }}</small>
       </article>
     </div>
 
     <section class="glass-card panel">
       <div class="panel__header">
         <div>
-          <p class="panel__eyebrow">Focus</p>
-          <h3>See whether this launch is the one on screen</h3>
+          <p class="panel__eyebrow">{{ t("focusEyebrow") }}</p>
+          <h3>{{ t("focusHeading") }}</h3>
         </div>
       </div>
       <div class="action-row">
-        <Button label="Check focus" icon="pi pi-eye" :disabled="!app.hostAvailable" @click="app.checkHostFocus()" />
-        <Button label="Request focus" icon="pi pi-bolt" :disabled="!app.hostAvailable" @click="app.requestHostFocusNow()" />
+        <Button :label="t('checkFocus')" icon="pi pi-eye" :disabled="!app.hostAvailable" @click="app.checkHostFocus()" />
+        <Button :label="t('requestFocus')" icon="pi pi-bolt" :disabled="!app.hostAvailable" @click="app.requestHostFocusNow()" />
         <Button
-          label="Request focus in 4 seconds"
+          :label="t('requestFocusLater')"
           icon="pi pi-clock"
           severity="secondary"
           :disabled="!app.hostAvailable"
@@ -60,34 +65,36 @@ const severities: DemoHostSeverity[] = ["info", "warning", "error"];
     <section class="glass-card panel">
       <div class="panel__header">
         <div>
-          <p class="panel__eyebrow">Notices</p>
-          <h3>Update one notice, or send one you can click later</h3>
+          <p class="panel__eyebrow">{{ t("noticesEyebrow") }}</p>
+          <h3>{{ t("noticesHeading") }}</h3>
         </div>
       </div>
       <label class="field">
-        <span>Severity</span>
+        <span>{{ t("severity") }}</span>
         <select v-model="app.hostSeverity" class="native-input" :disabled="!app.hostAvailable">
-          <option v-for="severity in severities" :key="severity" :value="severity">{{ severity }}</option>
+          <option v-for="severity in severities" :key="severity.value" :value="severity.value">
+            {{ t(severity.label) }}
+          </option>
         </select>
       </label>
       <div class="action-row">
         <Button
-          label="Count 0% to 100%"
+          :label="t('countProgress')"
           icon="pi pi-percentage"
           :disabled="!app.hostAvailable"
           @click="app.startHostProgress()"
         />
         <Button
-          label="Notify in 4 seconds"
+          :label="t('notifyLater')"
           icon="pi pi-bell"
           severity="secondary"
           :disabled="!app.hostAvailable"
           @click="app.scheduleHostNotice()"
         />
-        <Button label="Cancel timers" icon="pi pi-times" severity="contrast" outlined @click="app.cancelHostTimers()" />
+        <Button :label="t('cancelTimers')" icon="pi pi-times" severity="contrast" outlined @click="app.cancelHostTimers()" />
       </div>
       <p class="panel__copy">
-        The count reuses one notice id, so Haven updates that row every 10%. The delayed notice stays until you dismiss it or click it. Clicking it should bring this app back.
+        {{ t("noticesCopy") }}
       </p>
     </section>
   </section>

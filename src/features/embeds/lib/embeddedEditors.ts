@@ -17,6 +17,7 @@
  * @module embeddedEditors
  */
 import type { MindooDBAppComponentChildren, MindooDBAppComponentInfo } from "mindoodb-app-sdk";
+import { t, type MessageKey } from "@/i18n";
 
 import appDefinition from "../../../../public/haven-app.json";
 
@@ -32,14 +33,16 @@ export interface EmbeddedEditorSpec {
   componentId: string;
   /** For messages while the app is not installed (Haven then has no label for it). */
   appName: string;
-  noun: string;
+  /** Texts in src/i18n: what one document is called, and the "New …" button. */
+  nounKey: MessageKey;
+  newKey: MessageKey;
 }
 
 /** The three editors this tab offers. */
 export const EMBEDDED_EDITORS: readonly EmbeddedEditorSpec[] = [
-  { kind: "word", appId: "mindoodb-app-teamedit", componentId: "word", appName: "TeamEdit", noun: "Word document" },
-  { kind: "spreadsheet", appId: "mindoodb-app-teamgrid", componentId: "spreadsheet", appName: "TeamGrid", noun: "Spreadsheet" },
-  { kind: "presentation", appId: "mindoodb-app-teamslides", componentId: "presentation", appName: "TeamSlides", noun: "Presentation" },
+  { kind: "word", appId: "mindoodb-app-teamedit", componentId: "word", appName: "TeamEdit", nounKey: "nounWord", newKey: "newWord" },
+  { kind: "spreadsheet", appId: "mindoodb-app-teamgrid", componentId: "spreadsheet", appName: "TeamGrid", nounKey: "nounSpreadsheet", newKey: "newSpreadsheet" },
+  { kind: "presentation", appId: "mindoodb-app-teamslides", componentId: "presentation", appName: "TeamSlides", nounKey: "nounPresentation", newKey: "newPresentation" },
 ];
 
 /**
@@ -129,17 +132,17 @@ export function readChildren(value: unknown): MindooDBAppComponentChildren | nul
 /** A readable message for errors of `embeds.open` (Haven's error codes are the `name`). */
 export function describeOpenError(error: unknown, spec: EmbeddedEditorSpec | null): string {
   const name = error instanceof Error ? error.name : "";
-  const app = spec?.appName ?? "The editor's app";
+  const app = spec?.appName ?? t("theEditorsApp");
   switch (name) {
     case "declined":
-      return `You did not allow ${app} to open documents of this app. Open the document again and Haven asks once more.`;
+      return t("openDeclined", { app });
     case "component-not-found":
-      return `${app} is not installed. Install it in Haven, then reload this app.`;
+      return t("openComponentNotFound", { app });
     case "forbidden":
-      return "This app may not change documents in its database (read-only access or time travel).";
+      return t("openForbidden");
     case "unsupported":
     case "method-not-found":
-      return "This Haven cannot embed editors of other apps yet. Update Haven.";
+      return t("openUnsupported");
     default:
       return error instanceof Error ? error.message : String(error);
   }

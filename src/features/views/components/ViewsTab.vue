@@ -4,6 +4,8 @@ import Button from "primevue/button";
 import Message from "primevue/message";
 import Tag from "primevue/tag";
 
+import { t, tn } from "@/i18n";
+
 const props = defineProps<{
   app: any;
 }>();
@@ -20,15 +22,19 @@ const currentEntryLabel = computed(() => {
     return null;
   }
   if (entry.kind === "category") {
-    return entry.categoryPath[entry.categoryPath.length - 1] || "Category";
+    return entry.categoryPath[entry.categoryPath.length - 1] || t("category");
   }
   const firstColumn = props.app.visibleViewColumns[0];
-  return firstColumn ? formatValue(entry.columnValues[firstColumn.name]) : entry.docId || "Document";
+  return firstColumn ? formatValue(entry.columnValues[firstColumn.name]) : entry.docId || t("document");
 });
 
 function handleViewChange(event: Event) {
   const viewId = (event.target as HTMLSelectElement).value;
   props.app.setSelectedView(viewId || null);
+}
+
+function entryKind(kind: string) {
+  return kind === "category" ? t("entryCategory") : t("entryDocument");
 }
 
 function formatValue(value: unknown) {
@@ -49,9 +55,9 @@ function formatValue(value: unknown) {
   <section class="tab-section">
     <div class="section-toolbar">
       <label class="field">
-        <span class="field__label">Selected view</span>
+        <span class="field__label">{{ t("selectedView") }}</span>
         <select class="native-input" :value="app.selectedViewId ?? ''" @change="handleViewChange">
-          <option disabled value="">Select view</option>
+          <option disabled value="">{{ t("selectView") }}</option>
           <option v-for="view in app.availableViews" :key="view.id" :value="view.id">
             {{ view.id }}
           </option>
@@ -59,23 +65,23 @@ function formatValue(value: unknown) {
       </label>
 
       <div class="panel__actions">
-        <Button label="Refresh" severity="secondary" text :disabled="app.isBusy" @click="app.loadSelectedView" />
+        <Button :label="t('refresh')" severity="secondary" text :disabled="app.isBusy" @click="app.loadSelectedView" />
       </div>
     </div>
 
     <div v-if="!app.availableViews.length" class="glass-card empty-state">
-      No Haven view mappings were provided for this app launch.
+      {{ t("noViewMappings") }}
     </div>
 
     <div v-else-if="!app.selectedView" class="glass-card empty-state">
-      Select one of the available Haven-managed views to inspect its columns and result rows.
+      {{ t("selectViewHint") }}
     </div>
 
     <div v-else class="view-layout">
       <section class="glass-card panel">
         <div class="panel__header">
           <div>
-            <p class="panel__eyebrow">Definition</p>
+            <p class="panel__eyebrow">{{ t("definitionEyebrow") }}</p>
             <h3>{{ app.selectedView.id }}</h3>
           </div>
         </div>
@@ -84,16 +90,16 @@ function formatValue(value: unknown) {
 
         <div class="metadata-grid">
           <article class="metadata-card">
-            <span>Columns</span>
+            <span>{{ t("columns") }}</span>
             <strong>{{ app.visibleViewColumns.length }}</strong>
           </article>
           <article class="metadata-card">
-            <span>Sources</span>
+            <span>{{ t("sources") }}</span>
             <strong>{{ app.selectedView.sources.length }}</strong>
           </article>
           <article class="metadata-card">
-            <span>Categories</span>
-            <strong>{{ app.viewHasCategories ? "Yes" : "No" }}</strong>
+            <span>{{ t("categories") }}</span>
+            <strong>{{ app.viewHasCategories ? t("yes") : t("no") }}</strong>
           </article>
         </div>
 
@@ -109,14 +115,14 @@ function formatValue(value: unknown) {
       <section class="glass-card panel panel--result">
         <div class="panel__header">
           <div>
-            <p class="panel__eyebrow">Results</p>
-            <h3>Navigator rows</h3>
+            <p class="panel__eyebrow">{{ t("resultsEyebrow") }}</p>
+            <h3>{{ t("navigatorRows") }}</h3>
           </div>
           <div class="panel__actions">
-            <Tag :value="`${app.viewRows.length} visible rows`" severity="secondary" rounded />
+            <Tag :value="tn('visibleRows', app.viewRows.length)" severity="secondary" rounded />
             <Tag
               v-if="app.currentViewEntry"
-              :value="`Cursor: ${app.currentViewEntry.kind}`"
+              :value="t('cursor', { kind: entryKind(app.currentViewEntry.kind) })"
               severity="contrast"
               rounded
             />
@@ -128,15 +134,15 @@ function formatValue(value: unknown) {
         </Message>
 
         <div class="navigator-toolbar">
-          <Button label="First" severity="secondary" text :disabled="app.isBusy || !app.selectedView" @click="app.gotoFirstViewEntry" />
-          <Button label="Prev" severity="secondary" text :disabled="app.isBusy || !app.selectedView" @click="app.gotoPreviousViewEntry" />
-          <Button label="Next" severity="secondary" text :disabled="app.isBusy || !app.selectedView" @click="app.gotoNextViewEntry" />
-          <Button label="Last" severity="secondary" text :disabled="app.isBusy || !app.selectedView" @click="app.gotoLastViewEntry" />
-          <Button label="Parent" severity="secondary" text :disabled="app.isBusy || !app.currentViewEntry" @click="app.gotoParentViewEntry" />
-          <Button label="First child" severity="secondary" text :disabled="app.isBusy || !app.currentViewEntry" @click="app.gotoFirstChildViewEntry" />
+          <Button :label="t('first')" severity="secondary" text :disabled="app.isBusy || !app.selectedView" @click="app.gotoFirstViewEntry" />
+          <Button :label="t('previous')" severity="secondary" text :disabled="app.isBusy || !app.selectedView" @click="app.gotoPreviousViewEntry" />
+          <Button :label="t('next')" severity="secondary" text :disabled="app.isBusy || !app.selectedView" @click="app.gotoNextViewEntry" />
+          <Button :label="t('last')" severity="secondary" text :disabled="app.isBusy || !app.selectedView" @click="app.gotoLastViewEntry" />
+          <Button :label="t('parent')" severity="secondary" text :disabled="app.isBusy || !app.currentViewEntry" @click="app.gotoParentViewEntry" />
+          <Button :label="t('firstChild')" severity="secondary" text :disabled="app.isBusy || !app.currentViewEntry" @click="app.gotoFirstChildViewEntry" />
           <Button
             v-if="app.viewHasCategories"
-            label="Focus first category"
+            :label="t('focusFirstCategory')"
             severity="secondary"
             text
             :disabled="app.isBusy || !app.viewRows.length"
@@ -144,7 +150,7 @@ function formatValue(value: unknown) {
           />
           <Button
             v-if="app.viewHasCategories"
-            label="Expand"
+            :label="t('expand')"
             severity="secondary"
             text
             :disabled="app.isBusy || !app.currentViewEntry || app.currentViewEntry.kind !== 'category' || app.currentViewEntry.expanded"
@@ -152,7 +158,7 @@ function formatValue(value: unknown) {
           />
           <Button
             v-if="app.viewHasCategories"
-            label="Collapse"
+            :label="t('collapse')"
             severity="secondary"
             text
             :disabled="app.isBusy || !app.currentViewEntry || app.currentViewEntry.kind !== 'category' || !app.currentViewEntry.expanded"
@@ -160,14 +166,14 @@ function formatValue(value: unknown) {
           />
           <Button
             v-if="app.viewHasCategories"
-            label="Expand all"
+            :label="t('expandAll')"
             severity="secondary"
             :disabled="!app.viewRows.length"
             @click="app.expandAllViewCategories"
           />
           <Button
             v-if="app.viewHasCategories"
-            label="Collapse all"
+            :label="t('collapseAll')"
             severity="secondary"
             :disabled="!app.viewRows.length"
             @click="app.collapseAllViewCategories"
@@ -177,26 +183,26 @@ function formatValue(value: unknown) {
         <article v-if="app.currentViewEntry" class="current-entry-card">
           <div class="current-entry-card__header">
             <div>
-              <p class="panel__eyebrow">Current entry</p>
+              <p class="panel__eyebrow">{{ t("currentEntry") }}</p>
               <h4>{{ currentEntryLabel }}</h4>
             </div>
-            <Tag :value="app.currentViewEntry.position || 'No position'" severity="secondary" rounded />
+            <Tag :value="app.currentViewEntry.position || t('noPosition')" severity="secondary" rounded />
           </div>
           <div class="metadata-grid metadata-grid--entry">
             <article class="metadata-card">
-              <span>Kind</span>
-              <strong>{{ app.currentViewEntry.kind }}</strong>
+              <span>{{ t("kind") }}</span>
+              <strong>{{ entryKind(app.currentViewEntry.kind) }}</strong>
             </article>
             <article class="metadata-card">
-              <span>Level</span>
+              <span>{{ t("level") }}</span>
               <strong>{{ app.currentViewEntry.level }}</strong>
             </article>
             <article class="metadata-card">
-              <span>Doc ID</span>
+              <span>{{ t("docId") }}</span>
               <strong>{{ app.currentViewEntry.docId || "—" }}</strong>
             </article>
             <article class="metadata-card">
-              <span>Children</span>
+              <span>{{ t("children") }}</span>
               <strong>{{ app.currentViewEntry.childCategoryCount + app.currentViewEntry.childDocumentCount }}</strong>
             </article>
           </div>
@@ -237,8 +243,8 @@ function formatValue(value: unknown) {
                     @click.stop="app.toggleCategory(row)"
                   >
                     <span class="category-toggle__sign">{{ row.expanded ? '-' : '+' }}</span>
-                    <strong>{{ row.categoryPath[row.categoryPath.length - 1] || 'Category' }}</strong>
-                    <small>{{ row.descendantDocumentCount }} docs</small>
+                    <strong>{{ row.categoryPath[row.categoryPath.length - 1] || t("category") }}</strong>
+                    <small>{{ tn("docsCount", row.descendantDocumentCount) }}</small>
                   </button>
                   <template v-else>
                     <span class="category-toggle__sign category-toggle__sign--placeholder" aria-hidden="true"></span>
@@ -253,10 +259,10 @@ function formatValue(value: unknown) {
           </div>
         </div>
         <p v-if="app.viewRows.length && app.viewHasMore" class="panel__empty">
-          Only the first 250 visible rows are shown in the batch preview.
+          {{ t("onlyFirstRows") }}
         </p>
         <p v-else-if="!app.viewRows.length" class="panel__empty">
-          No view rows are visible for the selected definition.
+          {{ t("noViewRows") }}
         </p>
       </section>
     </div>

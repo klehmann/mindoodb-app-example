@@ -21,6 +21,7 @@ import {
   type MindooDBAppViewport,
 } from "mindoodb-app-sdk";
 
+import { t } from "@/i18n";
 import { applyAppTheme, normalizeAppTheme } from "@/lib/theme";
 
 /**
@@ -69,7 +70,7 @@ export function useEventsSection() {
     hostTheme.value = applyAppTheme(theme);
     addEventEntry(eventLog.value, {
       kind,
-      label: kind === "launch-theme" ? "Initial theme" : "Theme changed",
+      label: kind === "launch-theme" ? t("eventInitialTheme") : t("eventThemeChanged"),
       payload: stringifyJson(theme ?? hostTheme.value),
     });
   }
@@ -79,7 +80,7 @@ export function useEventsSection() {
     hostViewport.value = viewport;
     addEventEntry(eventLog.value, {
       kind,
-      label: kind === "launch-viewport" ? "Initial viewport" : "Viewport changed",
+      label: kind === "launch-viewport" ? t("eventInitialViewport") : t("eventViewportChanged"),
       payload: stringifyJson(viewport),
     });
   }
@@ -92,7 +93,7 @@ export function useEventsSection() {
     hostUiPreferences.value = { ...uiPreferences };
     addEventEntry(eventLog.value, {
       kind,
-      label: kind === "launch-ui-preferences" ? "Initial UI preferences" : "UI preferences changed",
+      label: kind === "launch-ui-preferences" ? t("eventInitialUiPreferences") : t("eventUiPreferencesChanged"),
       payload: stringifyJson(uiPreferences),
     });
   }

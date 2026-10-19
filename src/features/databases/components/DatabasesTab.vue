@@ -5,6 +5,7 @@ import Tag from "primevue/tag";
 import { ref } from "vue";
 import { abbreviateCanonicalName } from "mindoodb-app-sdk";
 
+import { formatDateTime, formatNumber, t, tn } from "@/i18n";
 import JsonCodeEditor from "@/shared/components/JsonCodeEditor.vue";
 
 const props = defineProps<{
@@ -72,27 +73,8 @@ function formatJson(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
 
-function formatDate(value: number | string | undefined) {
-  if (value == null) {
-    return "n/a";
-  }
-  const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? String(value) : date.toLocaleString();
-}
-
 function formatDocumentActor(value: string | undefined) {
   return value ? abbreviateCanonicalName(value) : "";
-}
-
-function formatDocumentUpdatedAt(value: number | string | undefined) {
-  if (value == null) {
-    return "n/a";
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.valueOf())) {
-    return String(value);
-  }
-  return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
 }
 
 function handleDatabaseChange(event: Event) {
@@ -117,13 +99,13 @@ function handleSearchInput(event: Event) {
   <section class="tab-section">
     <div class="section-toolbar">
       <label class="field">
-        <span class="field__label">Selected database</span>
+        <span class="field__label">{{ t("selectedDatabase") }}</span>
         <select
           class="native-input"
           :value="app.selectedDatabaseId ?? ''"
           @change="handleDatabaseChange"
         >
-          <option disabled value="">Select database</option>
+          <option disabled value="">{{ t("selectDatabase") }}</option>
           <option
             v-for="database in app.databases"
             :key="database.id"
@@ -146,29 +128,29 @@ function handleSearchInput(event: Event) {
     </div>
 
     <div v-if="!app.selectedDatabaseInfo" class="glass-card empty-state">
-      Pick a database to browse its documents, history, and attachments.
+      {{ t("pickDatabase") }}
     </div>
 
     <div v-else-if="!app.canRead" class="glass-card empty-state">
-      This database mapping is not readable from the app.
+      {{ t("databaseNotReadable") }}
     </div>
 
     <div v-else class="database-layout">
       <section class="glass-card panel">
         <div class="panel__header">
           <div>
-            <p class="panel__eyebrow">Documents</p>
-            <h3>Database contents</h3>
+            <p class="panel__eyebrow">{{ t("documentsEyebrow") }}</p>
+            <h3>{{ t("databaseContents") }}</h3>
           </div>
           <div class="panel__actions">
             <Button
-              label="Refresh"
+              :label="t('refresh')"
               severity="secondary"
               text
               @click="app.refreshDocuments(app.selectedDocumentId)"
             />
             <Button
-              label="New"
+              :label="t('newDocument')"
               icon="pi pi-plus"
               :disabled="!app.canCreate"
               @click="app.startCreateDocument"
@@ -178,29 +160,29 @@ function handleSearchInput(event: Event) {
 
         <div class="document-controls">
           <label class="field">
-            <span class="field__label">Document ID filter</span>
+            <span class="field__label">{{ t("idFilter") }}</span>
             <input
               v-model="app.documentIdFilter"
               class="native-input"
               type="text"
-              placeholder="Filter document IDs"
+              :placeholder="t('idFilterPlaceholder')"
             />
           </label>
 
           <label class="field">
-            <span class="field__label">Full-text search</span>
+            <span class="field__label">{{ t("fulltextSearch") }}</span>
             <input
               class="native-input"
               type="search"
               :value="app.searchQuery"
               :disabled="!app.hasSearchIndex"
-              placeholder="Search indexed fields"
+              :placeholder="t('searchPlaceholder')"
               @input="handleSearchInput"
             />
           </label>
 
           <div class="field">
-            <span class="field__label">Show</span>
+            <span class="field__label">{{ t("show") }}</span>
             <div class="choice-group">
               <label class="choice">
                 <input
@@ -210,7 +192,7 @@ function handleSearchInput(event: Event) {
                   :checked="app.documentListMode === 'all'"
                   @change="void app.setDocumentListMode('all')"
                 />
-                <span>All</span>
+                <span>{{ t("showAll") }}</span>
               </label>
               <label class="choice">
                 <input
@@ -220,7 +202,7 @@ function handleSearchInput(event: Event) {
                   :checked="app.documentListMode === 'existing'"
                   @change="void app.setDocumentListMode('existing')"
                 />
-                <span>Existing</span>
+                <span>{{ t("showExisting") }}</span>
               </label>
               <label class="choice">
                 <input
@@ -230,13 +212,13 @@ function handleSearchInput(event: Event) {
                   :checked="app.documentListMode === 'deleted'"
                   @change="void app.setDocumentListMode('deleted')"
                 />
-                <span>Deleted</span>
+                <span>{{ t("showDeleted") }}</span>
               </label>
             </div>
           </div>
 
           <div class="field">
-            <span class="field__label">Indexed fields</span>
+            <span class="field__label">{{ t("indexedFields") }}</span>
             <div v-if="app.availableSearchFields.length" class="field-picker">
               <label
                 v-for="field in app.availableSearchFields"
@@ -252,21 +234,20 @@ function handleSearchInput(event: Event) {
               </label>
             </div>
             <p v-else class="panel__empty">
-              Open a readable database with existing documents to discover
-              searchable fields.
+              {{ t("noSearchFields") }}
             </p>
           </div>
 
           <div class="panel__actions">
             <Button
-              :label="app.hasSearchIndex ? 'Update Index Fields' : 'Enable Index'"
+              :label="app.hasSearchIndex ? t('updateIndexFields') : t('enableIndex')"
               severity="secondary"
               text
               :disabled="!app.searchFieldSelection.length || app.isBusy"
               @click="app.enableSearchIndex(app.searchFieldSelection)"
             />
             <Button
-              label="Disable Index"
+              :label="t('disableIndex')"
               severity="secondary"
               text
               :disabled="!app.hasSearchIndex || app.isBusy"
@@ -279,13 +260,13 @@ function handleSearchInput(event: Event) {
             severity="secondary"
             :closable="false"
           >
-            Full-text index enabled ·
             {{
-              app.indexedFields.length
-                ? `indexed fields: ${app.indexedFields.join(", ")}`
-                : "all fields (auto mode)"
+              t("indexStatus", {
+                fields: app.indexedFields.length
+                  ? t("indexStatusFields", { fields: app.indexedFields.join(", ") })
+                  : t("indexStatusAuto"),
+              })
             }}
-            · kept current by the host
           </Message>
         </div>
 
@@ -303,7 +284,7 @@ function handleSearchInput(event: Event) {
               <strong>{{ document.id }}</strong>
               <Tag
                 v-if="document.isDeleted"
-                value="Deleted"
+                :value="t('deleted')"
                 severity="danger"
                 rounded
               />
@@ -317,38 +298,32 @@ function handleSearchInput(event: Event) {
                 )
               }}
             </span>
-            <span
-              >Updated: {{ formatDocumentUpdatedAt(document.updatedAt) }}</span
-            >
-            <span>{{ document.attachmentCount ?? 0 }} attachment(s)</span>
+            <span>{{ t("updatedAt", { date: formatDateTime(document.updatedAt) }) }}</span>
+            <span>{{ tn("attachmentCount", document.attachmentCount ?? 0) }}</span>
           </button>
         </div>
         <p v-else class="panel__empty">
-          No documents were returned for this database yet.
+          {{ t("noDocuments") }}
         </p>
       </section>
 
       <section class="glass-card panel panel--editor">
         <div class="panel__header">
           <div>
-            <p class="panel__eyebrow">Editor</p>
+            <p class="panel__eyebrow">{{ t("editorEyebrow") }}</p>
             <h3>
-              {{
-                app.editorMode === "create"
-                  ? "Create document"
-                  : "Edit document"
-              }}
+              {{ app.editorMode === "create" ? t("createDocument") : t("editDocument") }}
             </h3>
           </div>
           <div class="panel__actions">
             <Button
-              label="Save"
+              :label="t('save')"
               icon="pi pi-save"
               :disabled="app.isBusy || !app.canSaveCurrentDocument"
               @click="app.saveDocument"
             />
             <Button
-              label="Delete"
+              :label="t('delete')"
               icon="pi pi-trash"
               severity="danger"
               text
@@ -367,11 +342,11 @@ function handleSearchInput(event: Event) {
         <section class="glass-card panel">
           <div class="panel__header">
             <div>
-              <p class="panel__eyebrow">History</p>
-              <h3>Revision browser</h3>
+              <p class="panel__eyebrow">{{ t("historyEyebrow") }}</p>
+              <h3>{{ t("revisionBrowser") }}</h3>
             </div>
             <Button
-              label="Load history"
+              :label="t('loadHistory')"
               severity="secondary"
               text
               :disabled="!app.selectedDocumentId || app.isBusy"
@@ -395,7 +370,7 @@ function handleSearchInput(event: Event) {
                 class="history-item"
                 @click="app.loadHistory(entry.timestamp)"
               >
-                <strong>{{ formatDate(entry.timestamp) }}</strong>
+                <strong>{{ formatDateTime(entry.timestamp) }}</strong>
                 <span>{{
                   entry.identityLabel ||
                   entry.publicKeyFingerprint ||
@@ -403,10 +378,10 @@ function handleSearchInput(event: Event) {
                 }}</span>
                 <span>{{
                   entry.isDeleted
-                    ? "Deleted"
+                    ? t("deleted")
                     : entry.isCurrent
-                      ? "Current revision"
-                      : entry.summary || "Historical snapshot"
+                      ? t("currentRevision")
+                      : entry.summary || t("historicalSnapshot")
                 }}</span>
               </button>
             </div>
@@ -417,8 +392,7 @@ function handleSearchInput(event: Event) {
             />
           </div>
           <p v-else class="panel__empty">
-            Load history to inspect the available revisions for the selected
-            document.
+            {{ t("historyHint") }}
           </p>
         </section>
 
@@ -432,7 +406,7 @@ function handleSearchInput(event: Event) {
         >
           <div class="panel__header attachments-panel__header">
             <div>
-              <h3>Attachments</h3>
+              <h3>{{ t("attachments") }}</h3>
             </div>
             <div class="attachments-panel__controls">
               <label class="upload-button">
@@ -445,10 +419,10 @@ function handleSearchInput(event: Event) {
                   "
                   @change="handleUpload"
                 />
-                <span>Upload</span>
+                <span>{{ t("upload") }}</span>
               </label>
               <Button
-                label="Scan document"
+                :label="t('scanDocument')"
                 severity="secondary"
                 :disabled="
                   !app.selectedDocument ||
@@ -465,7 +439,7 @@ function handleSearchInput(event: Event) {
             v-if="app.selectedDocument && app.canUseAttachments && !app.isBusy"
             class="attachments-panel__hint"
           >
-            Drop files here from Files or Photos to attach them.
+            {{ t("attachmentDropHint") }}
           </p>
 
           <Message
@@ -484,11 +458,11 @@ function handleSearchInput(event: Event) {
             >
               <div>
                 <strong>{{ attachment.fileName }}</strong>
-                <p>{{ attachment.mimeType }} · {{ attachment.size }} bytes</p>
+                <p>{{ t("attachmentMeta", { type: attachment.mimeType, size: formatNumber(attachment.size) }) }}</p>
               </div>
               <div class="panel__actions">
                 <Button
-                  label="Preview"
+                  :label="t('preview')"
                   size="small"
                   severity="secondary"
                   text
@@ -501,13 +475,13 @@ function handleSearchInput(event: Event) {
                   @click="app.previewAttachment(attachment.fileName)"
                 />
                 <Button
-                  label="Extract"
+                  :label="t('extract')"
                   size="small"
                   severity="secondary"
                   @click="app.downloadAttachment(attachment.fileName)"
                 />
                 <Button
-                  label="Remove"
+                  :label="t('remove')"
                   size="small"
                   severity="danger"
                   text
@@ -517,7 +491,7 @@ function handleSearchInput(event: Event) {
             </article>
           </div>
           <p v-else class="panel__empty">
-            No attachments are stored for the current document.
+            {{ t("noAttachments") }}
           </p>
         </section>
       </section>

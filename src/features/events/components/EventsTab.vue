@@ -1,45 +1,44 @@
 <script setup lang="ts">
 import Tag from "primevue/tag";
 
+import { formatDateTime, t } from "@/i18n";
+
 defineProps<{
   app: any;
 }>();
 
-function formatTimestamp(value: string) {
-  return new Date(value).toLocaleString();
-}
 </script>
 
 <template>
   <section class="tab-section">
     <div class="summary-grid">
       <article class="glass-card summary-card">
-        <span>Theme mode</span>
-        <strong>{{ app.hostTheme.mode }}</strong>
+        <span>{{ t("themeMode") }}</span>
+        <strong>{{ app.hostTheme.mode === "light" ? t("modeLight") : t("modeDark") }}</strong>
         <Tag :value="app.hostTheme.preset" severity="secondary" rounded />
       </article>
       <article class="glass-card summary-card">
-        <span>Viewport</span>
-        <strong>{{ app.hostViewport ? `${Math.round(app.hostViewport.width)} x ${Math.round(app.hostViewport.height)}` : "pending" }}</strong>
-        <small>Reported by the Haven host</small>
+        <span>{{ t("viewport") }}</span>
+        <strong>{{ app.hostViewport ? `${Math.round(app.hostViewport.width)} x ${Math.round(app.hostViewport.height)}` : t("pending") }}</strong>
+        <small>{{ t("reportedByHost") }}</small>
       </article>
       <article class="glass-card summary-card">
-        <span>UI preferences</span>
-        <strong>{{ app.hostUiPreferences.iosMultitaskingOptimized ? "Shift nav right" : "Default mobile nav" }}</strong>
-        <small>Host-controlled app shell behavior</small>
+        <span>{{ t("uiPreferences") }}</span>
+        <strong>{{ app.hostUiPreferences.iosMultitaskingOptimized ? t("shiftNavRight") : t("defaultMobileNav") }}</strong>
+        <small>{{ t("hostControlledShell") }}</small>
       </article>
       <article class="glass-card summary-card">
-        <span>Event count</span>
+        <span>{{ t("eventCount") }}</span>
         <strong>{{ app.eventLog.length }}</strong>
-        <small>Initial snapshots plus live updates</small>
+        <small>{{ t("eventCountHint") }}</small>
       </article>
     </div>
 
     <section class="glass-card panel">
       <div class="panel__header">
         <div>
-          <p class="panel__eyebrow">Incoming events</p>
-          <h3>Theme, resize, and UI preference activity</h3>
+          <p class="panel__eyebrow">{{ t("incomingEvents") }}</p>
+          <h3>{{ t("eventsHeading") }}</h3>
         </div>
       </div>
 
@@ -47,13 +46,13 @@ function formatTimestamp(value: string) {
         <article v-for="entry in app.eventLog" :key="entry.id" class="event-item">
           <div class="event-item__meta">
             <Tag :value="entry.kind" severity="contrast" rounded />
-            <span>{{ formatTimestamp(entry.createdAt) }}</span>
+            <span>{{ formatDateTime(entry.createdAt) }}</span>
           </div>
           <strong>{{ entry.label }}</strong>
           <pre>{{ entry.payload }}</pre>
         </article>
       </div>
-      <p v-else class="panel__empty">Connect to Haven to start receiving host events.</p>
+      <p v-else class="panel__empty">{{ t("eventsEmpty") }}</p>
     </section>
   </section>
 </template>

@@ -6,6 +6,7 @@
  */
 import { ref, type Ref } from "vue";
 import type { MindooDBAppSession } from "mindoodb-app-sdk";
+import { t } from "@/i18n";
 
 export const HOST_FOCUS_DELAY_MS = 4_000;
 export const HOST_NOTICE_DELAY_MS = 4_000;
@@ -51,7 +52,8 @@ function readErrorMessage(error: unknown, fallback: string) {
 export function useHostSection(_session: Ref<MindooDBAppSession | null>) {
   const hostFocused = ref<boolean | null>(null);
   const hostAvailable = ref(false);
-  const hostStatus = ref("Connect to Haven to use focus and notices.");
+  /** Empty until the first status; the Host tab then shows `hostConnectFirst`. */
+  const hostStatus = ref("");
   const hostSeverity = ref<DemoHostSeverity>("info");
   let hostSession: DemoHostSession | null = null;
   let stopFocus: (() => void) | null = null;
@@ -94,7 +96,7 @@ export function useHostSection(_session: Ref<MindooDBAppSession | null>) {
     teardown();
     const resolved = asDemoHostSession(nextSession);
     if (!resolved) {
-      hostStatus.value = "This SDK build has no host focus or notices. Run pnpm dev:local.";
+      hostStatus.value = t("hostNoSdkSupport");
       return;
     }
     hostSession = resolved;
@@ -103,9 +105,7 @@ export function useHostSection(_session: Ref<MindooDBAppSession | null>) {
       hostFocused.value = focused;
     });
     await refreshFocus();
-    hostStatus.value = hostFocused.value
-      ? "This launch has host focus."
-      : "This launch does not have host focus.";
+    hostStatus.value = hostFocused.value ? t("hostHasFocus") : t("hostHasNoFocus");
   }
 
   async function checkHostFocus() {
@@ -114,11 +114,9 @@ export function useHostSection(_session: Ref<MindooDBAppSession | null>) {
     }
     try {
       await refreshFocus();
-      hostStatus.value = hostFocused.value
-        ? "This launch has host focus."
-        : "This launch does not have host focus.";
+      hostStatus.value = hostFocused.value ? t("hostHasFocus") : t("hostHasNoFocus");
     } catch (error) {
-      hostStatus.value = readErrorMessage(error, "Could not read host focus.");
+      hostStatus.value = readErrorMessage(error, t("hostReadFocusFailed"));
     }
   }
 
@@ -129,9 +127,9 @@ export function useHostSection(_session: Ref<MindooDBAppSession | null>) {
     try {
       await hostSession.requestHostFocus();
       await refreshFocus();
-      hostStatus.value = "Focus requested.";
+      hostStatus.value = t("focusRequested");
     } catch (error) {
-      hostStatus.value = readErrorMessage(error, "Could not request host focus.");
+      hostStatus.value = readErrorMessage(error, t("focusRequestFailed"));
     }
   }
 
@@ -142,7 +140,7 @@ export function useHostSection(_session: Ref<MindooDBAppSession | null>) {
     if (focusTimer != null) {
       clearTimeout(focusTimer);
     }
-    hostStatus.value = "Requesting focus in 4 seconds.";
+    hostStatus.value = t("focusRequestScheduled");
     focusTimer = setTimeout(() => {
       focusTimer = null;
       void requestHostFocusNow();
@@ -158,7 +156,7 @@ export function useHostSection(_session: Ref<MindooDBAppSession | null>) {
       severity: hostSeverity.value,
       text,
     });
-    hostStatus.value = `Notice ${result.id}: ${text}`;
+    hostStatus.value = t("noticeShown", { id: result.id, text });
   }
 
   function startHostProgress() {
@@ -179,7 +177,7 @@ export function useHostSection(_session: Ref<MindooDBAppSession | null>) {
       try {
         await notify(`${percent}%`, HOST_PROGRESS_NOTICE_ID);
       } catch (error) {
-        hostStatus.value = readErrorMessage(error, "Could not show the progress notice.");
+        hostStatus.value = readErrorMessage(error, t("progressNoticeFailed"));
         if (progressTimer != null) {
           clearInterval(progressTimer);
           progressTimer = null;
@@ -207,11 +205,11 @@ export function useHostSection(_session: Ref<MindooDBAppSession | null>) {
     if (noticeTimer != null) {
       clearTimeout(noticeTimer);
     }
-    hostStatus.value = "A notice will appear in 4 seconds. Leave this app, then click the notice.";
+    hostStatus.value = t("noticeScheduled");
     noticeTimer = setTimeout(() => {
       noticeTimer = null;
-      void notify("Click this notice to show the example app.", HOST_SCHEDULED_NOTICE_ID).catch((error: unknown) => {
-        hostStatus.value = readErrorMessage(error, "Could not show the scheduled notice.");
+      void notify(t("noticeClickText"), HOST_SCHEDULED_NOTICE_ID).catch((error: unknown) => {
+        hostStatus.value = readErrorMessage(error, t("scheduledNoticeFailed"));
       });
     }, HOST_NOTICE_DELAY_MS);
   }

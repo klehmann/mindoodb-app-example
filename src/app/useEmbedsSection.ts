@@ -47,6 +47,7 @@ import {
   type EmbeddedEditorKind,
   type EmbeddedEditorSpec,
 } from "@/features/embeds/lib/embeddedEditors";
+import { t } from "@/i18n";
 
 /**
  * Whether the user let the editor see this app's documents:
@@ -113,7 +114,7 @@ export function useEmbedsSection(session: Ref<MindooDBAppSession | null>) {
     await teardown();
     const info = launchContext.databases.find((entry) => entry.id === EMBEDS_DATABASE_ID);
     if (!info) {
-      notice.value = `The database "${EMBEDS_DATABASE_ID}" is not mapped to this app.`;
+      notice.value = t("embedsNotMapped", { database: EMBEDS_DATABASE_ID });
       return;
     }
     // Editing needs `update`; time travel launches are read-only.
@@ -233,7 +234,7 @@ export function useEmbedsSection(session: Ref<MindooDBAppSession | null>) {
 
   async function showEditor(docId: string, status: EmbeddedEditorStatus, container: HTMLElement): Promise<CloseResult> {
     if (!session.value || !status.component) {
-      notice.value = `${status.appName} is not installed. Install it in Haven to open this ${status.noun.toLowerCase()}.`;
+      notice.value = t("editorAppNotInstalled", { app: status.appName });
       return "failed";
     }
     notice.value = null;
@@ -263,7 +264,7 @@ export function useEmbedsSection(session: Ref<MindooDBAppSession | null>) {
         openDocId.value = null;
         openDirty.value = undefined;
         if (event.reason === "error") {
-          notice.value = `The editor closed with an error: ${event.message ?? "unknown"}`;
+          notice.value = t("editorClosedWithError", { message: event.message ?? t("unknownError") });
         }
       });
       return "closed";
@@ -285,7 +286,7 @@ export function useEmbedsSection(session: Ref<MindooDBAppSession | null>) {
       await embed.save();
       notice.value = null;
     } catch (cause) {
-      notice.value = `Saving failed: ${cause instanceof Error ? cause.message : String(cause)}`;
+      notice.value = t("savingFailed", { message: cause instanceof Error ? cause.message : String(cause) });
     }
   }
 
@@ -308,7 +309,9 @@ export function useEmbedsSection(session: Ref<MindooDBAppSession | null>) {
       try {
         await current.save();
       } catch (cause) {
-        notice.value = `Saving failed, the editor stays open: ${cause instanceof Error ? cause.message : String(cause)}`;
+        notice.value = t("savingFailedStaysOpen", {
+          message: cause instanceof Error ? cause.message : String(cause),
+        });
         return "failed";
       }
     }

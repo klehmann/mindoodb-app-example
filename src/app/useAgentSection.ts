@@ -27,6 +27,7 @@ import type {
 
 import { createAgentUndo } from "@/features/agent/lib/agentUndo";
 import { createExampleAgentTools } from "@/features/agent/lib/exampleAgentTools";
+import { t, tn } from "@/i18n";
 
 const CONTEXT_DEBOUNCE_MS = 300;
 
@@ -49,7 +50,8 @@ export function useAgentSection(deps: UseAgentSectionDeps) {
   /** Shown in the Agent tab. */
   const exposedToolNames = ref<string[]>([]);
   const agentToolsEnabled = ref(false);
-  const agentToolsStatus = ref("Not registered yet.");
+  /** Empty until registration answers; the Agent tab then shows `agentNotRegistered`. */
+  const agentToolsStatus = ref("");
   const agentUndo = createAgentUndo();
 
   /** Small and semantic: what an agent needs to resolve "this document". Not a UI dump. */
@@ -92,7 +94,7 @@ export function useAgentSection(deps: UseAgentSectionDeps) {
         return;
       }
       if (!session.agent) {
-        agentToolsStatus.value = "This Haven offers no agent tools (it predates them).";
+        agentToolsStatus.value = t("agentNoHostSupport");
         return;
       }
       try {
@@ -100,12 +102,13 @@ export function useAgentSection(deps: UseAgentSectionDeps) {
         exposedToolNames.value = registration.exposedNames;
         agentToolsEnabled.value = registration.enabled;
         agentToolsStatus.value = registration.enabled
-          ? `Offered ${registration.exposedNames.length} tools to agents.`
-          : 'Declared, but agents cannot call them yet: switch on "Agent tools" in Haven\'s settings and ' +
-            '"Offer tools to AI agents" for this app.';
+          ? tn("agentToolsOffered", registration.exposedNames.length)
+          : t("agentToolsDeclared");
         await session.agent.setContext(context.value);
       } catch (error) {
-        agentToolsStatus.value = `Could not offer agent tools: ${error instanceof Error ? error.message : String(error)}`;
+        agentToolsStatus.value = t("agentOfferFailed", {
+          message: error instanceof Error ? error.message : String(error),
+        });
       }
     },
     { immediate: true },

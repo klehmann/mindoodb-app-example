@@ -29,6 +29,8 @@ import {
   type MindooDBAppQueryRow,
 } from "mindoodb-app-sdk";
 
+import { t } from "@/i18n";
+
 import { AgentUndoConflictError, type AgentUndo } from "./agentUndo";
 
 /** What the tools need from the app. Small on purpose: easy to fake in tests. */
@@ -242,7 +244,7 @@ export function createExampleAgentTools(deps: ExampleAgentDeps): MindooDBAppAgen
       if (!Object.keys(data).length) invalid("data must have at least one field.");
       const created = await database.documents.create({ set: data, decryptionKeyId: deps.decryptionKeyId() });
       const step = deps.undo.record({
-        label: `Agent: create ${created.id}`,
+        label: t("agentStepCreate", { id: created.id }),
         docId: created.id,
         before: null,
         after: (await database.documents.get(created.id))?.data ?? data,
@@ -279,7 +281,7 @@ export function createExampleAgentTools(deps: ExampleAgentDeps): MindooDBAppAgen
       const before = (await loadDocument(database, docId)).data;
       await database.documents.update(docId, { set, unset });
       const after = (await database.documents.get(docId))?.data ?? null;
-      const step = deps.undo.record({ label: `Agent: update ${docId}`, docId, before, after });
+      const step = deps.undo.record({ label: t("agentStepUpdate", { id: docId }), docId, before, after });
       await deps.afterWrite(docId);
       return { docId, data: after, undoStepId: step.id };
     },
@@ -297,7 +299,7 @@ export function createExampleAgentTools(deps: ExampleAgentDeps): MindooDBAppAgen
       const docId = requiredString(input, "docId");
       const before = (await loadDocument(database, docId)).data;
       await database.documents.delete(docId);
-      const step = deps.undo.record({ label: `Agent: delete ${docId}`, docId, before, after: null });
+      const step = deps.undo.record({ label: t("agentStepDelete", { id: docId }), docId, before, after: null });
       await deps.afterWrite(null);
       return { deleted: docId, undoStepId: step.id };
     },
