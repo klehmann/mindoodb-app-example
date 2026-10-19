@@ -11,7 +11,7 @@
 import type { MindooDBAppDefinition } from "mindoodb-app-sdk";
 import { mockDatabasesFromDefinition, mountHavenTestHost } from "mindoodb-app-sdk/testing";
 
-import { seedDocuments } from "@/testHost/seed";
+import { seedComponents, seedDocuments } from "@/testHost/seed";
 
 async function start() {
   const response = await fetch(new URL("../haven-app.json", window.location.href));
@@ -29,6 +29,8 @@ async function start() {
     databases: mockDatabasesFromDefinition(definition, seedDocuments),
     // Agents see the tools under this prefix, as in Haven (`example_documents_list`).
     agentToolPrefix: definition.agentToolPrefix,
+    // TeamEdit, TeamGrid and TeamSlides as if installed, for the "Embedded editors" tab.
+    components: seedComponents,
   });
 }
 

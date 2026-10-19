@@ -43,6 +43,10 @@ The example app covers the full surface of the MindooDB App SDK, organized into 
 
 - **Agent tools (WebMCP)** -- the app offers its document operations to AI agents through Haven; the tab lists the tools as agents see them, whether Haven currently lets agents call them, and every change an agent made (each one an undo step). See [Agent tools (WebMCP)](#agent-tools-webmcp) below.
 
+### Embedded editors tab -- Embedding TeamEdit, TeamGrid and TeamSlides
+
+See [Embedding TeamEdit, TeamGrid and TeamSlides](#embedding-teamedit-teamgrid-and-teamslides) below.
+
 ## Agent tools (WebMCP)
 
 The app offers its document operations to AI agents. Haven registers them with the browser's agent interface ([WebMCP](https://webmachinelearning.github.io/webmcp/)) under the prefix `agentToolPrefix` from `public/haven-app.json`, so agents see `example_documents_list`, `example_document_update` and so on. Agents can only call them while the user has switched on **Agent tools** in Haven's settings and allowed this app.
@@ -65,6 +69,48 @@ Where to look:
 - Tests: `src/features/agent/lib/exampleAgentTools.test.ts` calls `execute` directly against the SDK's mock database; `src/app/useAgentSection.test.ts` calls the tools by their prefixed names through `createFakeBridgeHost`, as an agent would; `src/features/agent/agentProfile.test.ts` runs `checkAgentManifest` so the manifest never names a tool that does not exist.
 
 The SDK documentation is in the [SDK README](https://github.com/klehmann/mindoodb-app-sdk#agent-tools-webmcp). Apps with a real data model should present it to agents in plain words; [mindoodb-app-todomanager](https://github.com/klehmann/mindoodb-app-todomanager) (`src/features/agent/`) is the fuller example.
+
+## Embedding TeamEdit, TeamGrid and TeamSlides
+
+The *Embedded editors* tab shows how an app uses editors of other installed apps as
+*components*: the user creates and edits Word documents (TeamEdit), spreadsheets
+(TeamGrid) and presentations (TeamSlides) right inside this app, and the documents are
+stored in this app's own database `sdkexample`. The example never touches their content.
+
+- **Finding the editors** -- `session.components.list()` lists the components of all
+  installed apps; the example picks the three it wants by `appId` and `componentId`
+  and explains how to install a missing one.
+- **Asking once** -- `session.embeds.requestAccess()` asks the user in one dialog for
+  all three editors on every start (Haven skips what was answered before). A
+  declined editor is asked for again when one of its documents opens.
+- **Creating** -- a new document is a root document with the component's
+  `createFields` plus a title and the example's own fields (`exampleEditor`,
+  `exampleChildren`); the editor fills it in when it opens.
+- **Showing** -- `session.embeds.open({ componentKey, databaseId, docId, container })`
+  puts the editor into a positioned element of the tab. Haven copies the document
+  into a sandbox, runs the editor's app on it and writes every change back.
+- **Listing and renames** -- a live query on `exampleEditor` lists the documents;
+  titles the user changes in the editor show up by themselves.
+- **Saving and closing** -- `embed.save()`, `embed.dirty` / `onDirtyChange` and
+  Save / Don't save / Cancel before closing; `embed.setVisible()` while the tab is
+  in the background.
+- **Deleting** -- the root and its children (Word chunks, slides), found through the
+  `children` link stored on the root.
+
+`haven-app.json` needs no entry for this: the host only needs `write` access to its
+own database. The test host (`/__haven-test/`) lists the three editors as installed
+(`src/testHost/seed.ts`) and draws a stand-in with Done / Cancel buttons.
+
+Files:
+
+- `src/features/embeds/lib/embeddedEditors.ts` -- which editors, the root document fields, query filters, error messages
+- `src/app/useEmbedsSection.ts` -- every SDK call of the tab
+- `src/app/useEmbedsSection.test.ts` -- the flow against the SDK's mock Haven
+- `src/features/embeds/components/EmbedsTab.vue` -- the UI
+
+The SDK README section "Components: embedding another app's editor" documents the API;
+[Mindoo CRM](https://github.com/klehmann/mindoodb-app-crm) is a larger host with
+folders, several open editors and save checks.
 
 ## Tech stack
 
@@ -182,11 +228,13 @@ src/
     useViewsSection.ts          Views tab: navigator traversal, expansion, batched entry reading
     useEventsSection.ts         Events tab: host theme/viewport tracking, event log
     useAgentSection.ts          Agent tools: registration with Haven, agent context
+    useEmbedsSection.ts         Embedded editors tab: TeamEdit, TeamGrid and TeamSlides as components
     useMindooDBDemoApp.test.ts  Integration tests using the SDK mock bridge
   assets/styles/                Global Mindoo theme styling (CSS custom properties)
   features/
     agent/                      AI agent tools (WebMCP), agent undo, Agent tools tab
     databases/                  Document CRUD, history, attachment UI, and full-text search
+    embeds/                     Embedded editors of other apps (UI and helpers)
     events/                     Theme and viewport event display and logging
     views/                      Haven view rendering helpers and categorized grid UI
   lib/                          Theme bootstrap (PrimeVue theme integration)
@@ -200,6 +248,7 @@ The app is organized by feature so each SDK integration area is easy to find and
 The test suite is intentionally focused on the non-trivial integration points:
 
 - **`src/app/useMindooDBDemoApp.test.ts`** -- verifies the shared app controller (including query-based full-text search) using the SDK's `createMockMindooDBAppBridge` helpers from `mindoodb-app-sdk/testing`
+- **`src/app/useEmbedsSection.test.ts`** -- creating, opening, saving, closing and deleting embedded documents, and the cases where an editor is missing or not allowed, against the mock Haven's component support
 - **`src/features/views/lib/runtimeViews.test.ts`** -- verifies the adapter logic that transforms Haven-configured view definitions into runtime view shapes
 
 Run the tests:
