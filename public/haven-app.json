@@ -112,6 +112,7 @@
   ],
   "publicUrl": "https://app-example.mindoodb.com/",
   "listing": {
+    "shareImage": "listing/share.png",
     "summary": {
       "en": "Reference app demonstrating the features of the MindooDB App SDK.",
       "de": "Referenz-App, die die Funktionen des MindooDB App SDK demonstriert.",
