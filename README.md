@@ -17,6 +17,7 @@ The example app covers the full surface of the MindooDB App SDK, organized into 
 - **Document history** -- list all revisions of a document with author and timestamp, load any historical snapshot
 - **Attachments** -- upload files via chunked streaming, download, remove, and preview attachments directly in Haven's built-in viewer
 - **Attachment previews** -- leverages Haven's native preview for images, PDF, Word (.docx), PowerPoint (.pptx), Excel (.xls/.xlsx), video (with streaming player and seek), audio (with streaming player and seek), and text formats -- all working online and offline
+- **Attachments on the device (pins)** -- when the database loads attachments on demand (`attachmentStorage: "onDemand"`, Haven sync setting), each file shows whether it is only on the server, kept on this device, or downloading, with a button to keep it offline. `src/app/useAttachmentAvailability.ts` wraps `db.attachments.availability` / `pin` / `unpin` / `onAvailabilityChange` and the SDK's `describeAttachmentAvailability`; copy it into your app. Run the test host with `?attachments=onDemand` (and `window.__havenTestOffline = true` in the host page to make reads fail) to try it.
 
 ### Views tab -- Virtual Views
 
@@ -241,6 +242,7 @@ src/
   app/
     useMindooDBDemoApp.ts       Root orchestrator: session lifecycle, shared state, cross-tab wiring
     useDocumentsSection.ts      Documents tab: CRUD, history, attachments, full-text search
+    useAttachmentAvailability.ts  Attachment pins: availability per file, keep offline
     useViewsSection.ts          Views tab: navigator traversal, expansion, batched entry reading
     useEventsSection.ts         Events tab: host theme/viewport tracking, event log
     useAgentSection.ts          Agent tools: registration with Haven, agent context

@@ -39,7 +39,8 @@ import {
   type MindooDBAppLaunchContext,
 } from "mindoodb-app-sdk";
 
-import { t, tn } from "@/i18n";
+import { language, t, tn } from "@/i18n";
+import { useAttachmentAvailability } from "@/app/useAttachmentAvailability";
 
 /** Filter applied to the document list API: show all, only live, or only soft-deleted documents. */
 type DocumentListMode = "all" | "existing" | "deleted";
@@ -142,6 +143,21 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
   );
   const historyMessage = ref<string | null>(null);
   const attachments = ref<MindooDBAppAttachmentInfo[]>([]);
+  /**
+   * Attachment pins (SDK 0.0.90): with attachments synced "on demand" Haven
+   * keeps only own and pinned files on the device. `describeAttachmentAvailability`
+   * (inside the composable) gives each row an icon, a tooltip and the
+   * "Keep available offline" action in Haven's languages.
+   */
+  const attachmentAvailability = useAttachmentAvailability({
+    database: selectedDatabase,
+    docId: selectedDocumentId,
+    attachmentIds: computed(() => attachments.value.map((attachment) => attachment.attachmentId)),
+    locale: computed(() => language.value),
+    onError: (message) => {
+      error.value = message;
+    },
+  });
   const attachmentMessage = ref<string | null>(null);
   const documentIdFilter = ref("");
   const documentListMode = ref<DocumentListMode>("existing");
@@ -798,6 +814,9 @@ export function useDocumentsSection(deps: UseDocumentsSectionDeps) {
     historyMessage,
     attachments,
     attachmentMessage,
+    attachmentPinsEnabled: attachmentAvailability.enabled,
+    attachmentAvailabilityOf: attachmentAvailability.displayOf,
+    toggleAttachmentPin: attachmentAvailability.togglePin,
     availableSearchFields,
     searchFieldSelection,
     indexedFields,

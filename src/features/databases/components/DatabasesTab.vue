@@ -13,6 +13,14 @@ const props = defineProps<{
 }>();
 
 const attachmentDragActive = ref(false);
+
+/** PrimeIcons for `describeAttachmentAvailability(...).icon`. */
+const AVAILABILITY_ICONS: Record<string, string> = {
+  cloud: "pi pi-cloud",
+  pin: "pi pi-thumbtack",
+  download: "pi pi-cloud-download",
+  error: "pi pi-exclamation-triangle",
+};
 const attachmentDragDepth = ref(0);
 
 function canAcceptAttachmentDrop(): boolean {
@@ -457,10 +465,29 @@ function handleSearchInput(event: Event) {
               class="attachment-item"
             >
               <div>
-                <strong>{{ attachment.fileName }}</strong>
+                <strong>
+                  <i
+                    v-if="app.attachmentAvailabilityOf(attachment.attachmentId)?.icon"
+                    :class="AVAILABILITY_ICONS[app.attachmentAvailabilityOf(attachment.attachmentId)!.icon!]"
+                    class="attachment-item__availability"
+                    role="img"
+                    :aria-label="app.attachmentAvailabilityOf(attachment.attachmentId)?.label"
+                    :title="app.attachmentAvailabilityOf(attachment.attachmentId)?.label"
+                  />
+                  {{ attachment.fileName }}
+                </strong>
                 <p>{{ t("attachmentMeta", { type: attachment.mimeType, size: formatNumber(attachment.size) }) }}</p>
               </div>
               <div class="panel__actions">
+                <Button
+                  v-if="app.attachmentPinsEnabled && app.attachmentAvailabilityOf(attachment.attachmentId)?.action"
+                  :label="app.attachmentAvailabilityOf(attachment.attachmentId)?.action?.label"
+                  icon="pi pi-thumbtack"
+                  size="small"
+                  :severity="app.attachmentAvailabilityOf(attachment.attachmentId)?.action?.kind === 'unpin' ? 'primary' : 'secondary'"
+                  :text="app.attachmentAvailabilityOf(attachment.attachmentId)?.action?.kind !== 'unpin'"
+                  @click="app.toggleAttachmentPin(attachment.attachmentId)"
+                />
                 <Button
                   :label="t('preview')"
                   size="small"
@@ -510,6 +537,11 @@ function handleSearchInput(event: Event) {
 .panel__header,
 .panel__actions,
 .history-item,
+.attachment-item__availability {
+  margin-right: 0.35rem;
+  opacity: 0.75;
+}
+
 .attachment-item {
   display: flex;
   gap: 0.75rem;
